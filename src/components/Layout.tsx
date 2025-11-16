@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Calendar, Dumbbell, ClipboardList, BookOpen, Settings, History } from "lucide-react";
+import { Calendar, Dumbbell, ClipboardList, BookOpen, Settings, History, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LayoutProps {
@@ -15,6 +15,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
 
   const navItems = [
+    { path: "/session", icon: Play, label: "Séance" },
     { path: "/calendrier", icon: Calendar, label: "Calendrier" },
     { path: "/historique", icon: History, label: "Historique" },
     { path: "/plans", icon: ClipboardList, label: "Plans" },

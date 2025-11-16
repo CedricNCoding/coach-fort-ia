@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Auth from "./pages/Auth";
 import Calendar from "./pages/Calendar";
+import History from "./pages/History";
 import Plans from "./pages/Plans";
 import PlanDetail from "./pages/PlanDetail";
 import Exercises from "./pages/Exercises";
@@ -40,6 +41,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/" element={<Navigate to="/calendrier" replace />} />
           <Route path="/calendrier" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
+          <Route path="/historique" element={<ProtectedRoute><History /></ProtectedRoute>} />
           <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />
           <Route path="/plans/:id" element={<ProtectedRoute><PlanDetail /></ProtectedRoute>} />
           <Route path="/exercices" element={<ProtectedRoute><Exercises /></ProtectedRoute>} />

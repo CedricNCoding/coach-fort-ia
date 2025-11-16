@@ -9,6 +9,9 @@ import Calendar from "./pages/Calendar";
 import Plans from "./pages/Plans";
 import PlanDetail from "./pages/PlanDetail";
 import Exercises from "./pages/Exercises";
+import Session from "./pages/Session";
+import SessionSummary from "./pages/SessionSummary";
+import AISettings from "./pages/AISettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +43,9 @@ const App = () => (
           <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />
           <Route path="/plans/:id" element={<ProtectedRoute><PlanDetail /></ProtectedRoute>} />
           <Route path="/exercices" element={<ProtectedRoute><Exercises /></ProtectedRoute>} />
+          <Route path="/session" element={<ProtectedRoute><Session /></ProtectedRoute>} />
+          <Route path="/session-summary/:sessionId" element={<ProtectedRoute><SessionSummary /></ProtectedRoute>} />
+          <Route path="/reglages-ia" element={<ProtectedRoute><AISettings /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -1,1 +1,10 @@
 project_id = "ezxgteodugnsdkxnvhnh"
+
+[functions]
+enabled = true
+
+[functions.ai-advise-set]
+verify_jwt = true
+
+[functions.ai-feedback-progression]
+verify_jwt = true

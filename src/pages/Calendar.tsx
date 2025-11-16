@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -18,19 +18,19 @@ export default function Calendar() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<1 | 2>(1);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [deleteWorkoutId, setDeleteWorkoutId] = useState<number | null>(null);
 
-  // Charger les séances planifiées du mois
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
+  // Charger les séances planifiées de la semaine
+  const weekStart = startOfWeek(currentWeek, { locale: fr });
+  const weekEnd = endOfWeek(currentWeek, { locale: fr });
 
   const { data: plannedWorkouts = [] } = useQuery({
-    queryKey: ["planned_workouts", format(monthStart, "yyyy-MM-dd")],
+    queryKey: ["planned_workouts", format(weekStart, "yyyy-MM-dd")],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("planned_workouts")
@@ -38,8 +38,8 @@ export default function Calendar() {
           *,
           workout_template:workout_templates(name, goal)
         `)
-        .gte("date", format(monthStart, "yyyy-MM-dd"))
-        .lte("date", format(monthEnd, "yyyy-MM-dd"));
+        .gte("date", format(weekStart, "yyyy-MM-dd"))
+        .lte("date", format(weekEnd, "yyyy-MM-dd"));
       
       if (error) throw error;
       return data;
@@ -111,10 +111,8 @@ export default function Calendar() {
     });
   };
 
-  // Générer le calendrier
-  const calendarStart = startOfWeek(monthStart, { locale: fr });
-  const calendarEnd = endOfWeek(monthEnd, { locale: fr });
-  const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  // Générer les jours de la semaine
+  const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -135,13 +133,13 @@ export default function Calendar() {
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Calendrier</h1>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+            <Button variant="outline" size="icon" onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="text-lg font-medium min-w-[200px] text-center">
-              {format(currentMonth, "MMMM yyyy", { locale: fr })}
+            <div className="text-lg font-medium min-w-[280px] text-center">
+              Semaine du {format(weekStart, "d", { locale: fr })} au {format(weekEnd, "d MMMM yyyy", { locale: fr })}
             </div>
-            <Button variant="outline" size="icon" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
+            <Button variant="outline" size="icon" onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -150,60 +148,73 @@ export default function Calendar() {
         {/* Calendrier */}
         <Card>
           <CardContent className="p-4">
-            {/* En-têtes jours */}
-            <div className="grid grid-cols-7 gap-2 mb-2">
-              {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(day => (
-                <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
-                  {day}
+            {/* En-têtes jours avec dates */}
+            <div className="grid grid-cols-7 gap-3 mb-3">
+              {days.map((day, idx) => (
+                <div key={idx} className="text-center space-y-1">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    {format(day, "EEE", { locale: fr })}
+                  </div>
+                  <div className={cn(
+                    "text-lg font-semibold",
+                    isSameDay(day, new Date()) && "text-primary"
+                  )}>
+                    {format(day, "d")}
+                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Jours du mois */}
-            <div className="grid grid-cols-7 gap-2">
+            {/* Jours de la semaine */}
+            <div className="grid grid-cols-7 gap-3">
               {days.map((day, idx) => {
                 const workouts = getWorkoutsForDay(day);
-                const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
                 const isToday = isSameDay(day, new Date());
 
                 return (
                   <div
                     key={idx}
                     className={cn(
-                      "min-h-[100px] p-2 rounded-lg border cursor-pointer hover:border-primary transition-colors",
-                      !isCurrentMonth && "opacity-40",
-                      isToday && "border-primary border-2"
+                      "min-h-[160px] p-3 rounded-lg border cursor-pointer hover:border-primary hover:shadow-md transition-all",
+                      isToday && "border-primary border-2 bg-accent/20"
                     )}
                     onClick={() => {
                       setSelectedDate(day);
                       setShowPlanDialog(true);
                     }}
                   >
-                    <div className="text-sm font-medium mb-2">{format(day, "d")}</div>
-                    <div className="space-y-1">
+                    <div className="space-y-2">
+                      {workouts.length === 0 && (
+                        <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
+                          <Plus className="h-4 w-4" />
+                        </div>
+                      )}
                       {workouts.map(workout => (
                         <div
                           key={workout.id}
                           className={cn(
-                            "text-xs p-1 rounded truncate flex items-center justify-between group",
+                            "text-xs p-2 rounded-md flex flex-col gap-1 group relative",
                             getStatusColor(workout.status)
                           )}
                           onClick={(e) => {
                             e.stopPropagation();
                           }}
                         >
-                          <span>Slot {workout.slot}: {workout.workout_template?.name}</span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteWorkoutId(workout.id);
-                            }}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <div className="flex items-start justify-between gap-1">
+                            <span className="font-medium text-[10px]">Slot {workout.slot}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity absolute top-1 right-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteWorkoutId(workout.id);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <span className="text-xs line-clamp-2">{workout.workout_template?.name}</span>
                         </div>
                       ))}
                     </div>

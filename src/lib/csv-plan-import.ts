@@ -10,6 +10,7 @@ export interface PlanCSVRow {
   target_sets?: number;
   target_reps_min?: number;
   target_reps_max?: number;
+  target_time_seconds?: number;
   target_weight_kg?: number;
   target_rest_seconds?: number;
   superset_rest_seconds?: number;
@@ -25,7 +26,7 @@ export interface ImportResult {
 
 /**
  * Parse un fichier CSV de plan d'entraînement
- * Format : plan_name,exercise_name,order_index,superset_group,target_sets,target_reps_min,target_reps_max,target_weight_kg,target_rest_seconds,superset_rest_seconds,target_difficulty_note
+ * Format : plan_name,exercise_name,order_index,superset_group,target_sets,target_reps_min,target_reps_max,target_time_seconds,target_weight_kg,target_rest_seconds,superset_rest_seconds,target_difficulty_note
  */
 export function parsePlanCSV(csvContent: string): { rows: PlanCSVRow[], errors: string[] } {
   const lines = csvContent.trim().split('\n');
@@ -64,10 +65,11 @@ export function parsePlanCSV(csvContent: string): { rows: PlanCSVRow[], errors: 
       target_sets: values[4] ? parseInt(values[4]) : 3,
       target_reps_min: values[5] ? parseInt(values[5]) : 6,
       target_reps_max: values[6] ? parseInt(values[6]) : 12,
-      target_weight_kg: values[7] ? parseFloat(values[7]) : undefined,
-      target_rest_seconds: values[8] ? parseInt(values[8]) : 90,
-      superset_rest_seconds: values[9] ? parseInt(values[9]) : undefined,
-      target_difficulty_note: values[10] || undefined
+      target_time_seconds: values[7] ? parseInt(values[7]) : undefined,
+      target_weight_kg: values[8] ? parseFloat(values[8]) : undefined,
+      target_rest_seconds: values[9] ? parseInt(values[9]) : 90,
+      superset_rest_seconds: values[10] ? parseInt(values[10]) : undefined,
+      target_difficulty_note: values[11] || undefined
     };
 
     rows.push(row);
@@ -80,20 +82,20 @@ export function parsePlanCSV(csvContent: string): { rows: PlanCSVRow[], errors: 
  * Génère un template CSV pour l'import de plans
  */
 export function generatePlanCSVTemplate(): string {
-  return `plan_name,exercise_name,order_index,superset_group,target_sets,target_reps_min,target_reps_max,target_weight_kg,target_rest_seconds,superset_rest_seconds,target_difficulty_note
-Push A,Développé couché,1,A,3,6,12,60,120,180,Explosion concentrique
-Push A,Développé incliné,2,A,3,8,12,40,120,180,
-Push A,Développé épaules,3,B,3,8,12,30,90,150,
-Push A,Élévations latérales,4,B,3,10,15,8,60,150,
-Pull A,Tractions,1,,4,6,10,0,120,,RIR 2-3
-Pull A,Rowing barre,2,,3,8,12,50,120,,Garder le dos droit`;
+  return `plan_name,exercise_name,order_index,superset_group,target_sets,target_reps_min,target_reps_max,target_time_seconds,target_weight_kg,target_rest_seconds,superset_rest_seconds,target_difficulty_note
+Push A,Développé couché,1,A,3,6,12,,60,120,180,Explosion concentrique
+Push A,Développé incliné,2,A,3,8,12,,40,120,180,
+Push A,Planche,3,B,3,,,60,0,90,150,Maintenir position
+Push A,Élévations latérales,4,B,3,10,15,,8,60,150,
+Pull A,Tractions,1,,4,6,10,,0,120,,RIR 2-3
+Pull A,Rowing barre,2,,3,8,12,,50,120,,Garder le dos droit`;
 }
 
 /**
  * Exporte les exercices d'un plan en CSV
  */
 export function exportPlanToCSV(planName: string, exercises: any[]): string {
-  const header = 'plan_name,exercise_name,order_index,superset_group,target_sets,target_reps_min,target_reps_max,target_weight_kg,target_rest_seconds,superset_rest_seconds,target_difficulty_note\n';
+  const header = 'plan_name,exercise_name,order_index,superset_group,target_sets,target_reps_min,target_reps_max,target_time_seconds,target_weight_kg,target_rest_seconds,superset_rest_seconds,target_difficulty_note\n';
   
   const rows = exercises.map(ex => {
     return [
@@ -102,8 +104,9 @@ export function exportPlanToCSV(planName: string, exercises: any[]): string {
       ex.order_index,
       ex.superset_group || '',
       ex.target_sets || 3,
-      ex.target_reps_min || 6,
-      ex.target_reps_max || 12,
+      ex.target_reps_min || '',
+      ex.target_reps_max || '',
+      ex.target_time_seconds || '',
       ex.target_weight_kg || '',
       ex.target_rest_seconds || 90,
       ex.superset_rest_seconds || '',

@@ -163,6 +163,7 @@ export default function Plans() {
               target_sets: row.target_sets,
               target_reps_min: row.target_reps_min,
               target_reps_max: row.target_reps_max,
+              target_time_seconds: row.target_time_seconds,
               target_weight_kg: row.target_weight_kg,
               target_rest_seconds: row.target_rest_seconds,
               superset_rest_seconds: row.superset_rest_seconds,

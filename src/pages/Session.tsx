@@ -6,13 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { Clock, Play, Trash2, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { Clock, Play, Trash2, Sparkles } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
 import SessionExercise from "@/components/SessionExercise";
 import RestTimer from "@/components/RestTimer";
-import { Badge } from "@/components/ui/badge";
 
 export default function Session() {
   const { toast } = useToast();
@@ -91,7 +90,7 @@ export default function Session() {
       return data;
     },
     enabled: !!currentSession?.id,
-    refetchInterval: 2000 // Rafraîchir toutes les 2 secondes
+    refetchInterval: 2000
   });
 
   // Chronomètre global
@@ -107,14 +106,16 @@ export default function Session() {
     return () => clearInterval(interval);
   }, [currentSession?.started_at]);
 
-  // Mutation pour démarrer une séance
+  // Mutation pour démarrer une session
   const startSessionMutation = useMutation({
     mutationFn: async (plannedWorkoutId: number) => {
       const { data: { user } } = await supabase.auth.getUser();
-      const { data, error } = await supabase
+      if (!user) throw new Error("Not authenticated");
+      
+      const { data: newSession, error } = await supabase
         .from("sessions")
         .insert([{
-          user_id: user?.id,
+          user_id: user.id,
           planned_workout_id: plannedWorkoutId,
           started_at: new Date().toISOString(),
           status: "in_progress"
@@ -122,45 +123,45 @@ export default function Session() {
         .select()
         .single();
       if (error) throw error;
-      return data;
+      return newSession;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["current_session"] });
       queryClient.invalidateQueries({ queryKey: ["today_workouts"] });
       toast({ title: "Séance démarrée !" });
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Erreur lors du démarrage de la séance"
+      });
     }
   });
 
-  // Mutation pour terminer la séance
+  // Mutation pour terminer une session
   const finishSessionMutation = useMutation({
     mutationFn: async () => {
-      if (!currentSession?.id) throw new Error("Pas de session en cours");
+      if (!currentSession?.id) throw new Error("No session");
 
-      // Calculer les stats
-      const workSets = sessionSets.filter(s => s.is_warmup === 0);
-      const totalTonnage = workSets.reduce((sum, s) => sum + (s.reps * Number(s.weight_kg)), 0);
-      const avgDifficulty = workSets.length > 0
-        ? workSets.reduce((sum, s) => sum + (s.perceived_difficulty || 7), 0) / workSets.length
-        : 0;
+      const avgDifficulty = sessionSets.reduce((acc, s) => acc + (s.perceived_difficulty || 0), 0) / sessionSets.length;
 
-      const { error } = await supabase
+      const { error: sessionError } = await supabase
         .from("sessions")
         .update({
-          finished_at: new Date().toISOString(),
           status: "completed",
-          total_tonnage: totalTonnage,
-          avg_difficulty: avgDifficulty
+          finished_at: new Date().toISOString(),
+          avg_difficulty: avgDifficulty || null
         })
         .eq("id", currentSession.id);
-      
-      if (error) throw error;
 
-      // Mettre à jour le planned_workout en "done"
+      if (sessionError) throw sessionError;
+
       if (currentSession.planned_workout_id) {
-        await supabase
+        const { error: pwError } = await supabase
           .from("planned_workouts")
-          .update({ status: "done" })
+          .update({ status: "completed" })
           .eq("id", currentSession.planned_workout_id);
+        if (pwError) throw pwError;
       }
 
       return currentSession.id;
@@ -168,53 +169,63 @@ export default function Session() {
     onSuccess: (sessionId) => {
       queryClient.invalidateQueries({ queryKey: ["current_session"] });
       queryClient.invalidateQueries({ queryKey: ["today_workouts"] });
-      queryClient.invalidateQueries({ queryKey: ["planned_workouts"] });
-      toast({ title: "Séance terminée !" });
       navigate(`/session-summary/${sessionId}`);
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Erreur lors de la fin de la séance"
+      });
     }
   });
 
-  // Mutation pour supprimer la session en cours
+  // Mutation pour supprimer une session
   const deleteSessionMutation = useMutation({
     mutationFn: async () => {
-      if (!currentSession?.id) throw new Error("Pas de session en cours");
+      if (!currentSession?.id) throw new Error("No session");
       
-      // Supprimer d'abord les sets
-      await supabase
+      const { error: setsError } = await supabase
         .from("session_sets")
         .delete()
         .eq("session_id", currentSession.id);
-      
-      // Puis la session
-      const { error } = await supabase
+      if (setsError) throw setsError;
+
+      const { error: sessionError } = await supabase
         .from("sessions")
         .delete()
         .eq("id", currentSession.id);
-      
-      if (error) throw error;
+      if (sessionError) throw sessionError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["current_session"] });
       queryClient.invalidateQueries({ queryKey: ["today_workouts"] });
       toast({ title: "Séance supprimée" });
       setShowDeleteDialog(false);
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Erreur lors de la suppression"
+      });
     }
   });
 
-  // Obtenir des conseils IA
-  const getAIAdvice = async () => {
-    if (!currentSession?.id) return;
-    
+  // Fonction pour obtenir un conseil IA
+  const getAIAdvice = async (templateExerciseId: number, setNumber: number) => {
     setIsLoadingAdvice(true);
+    setAiAdvice(null);
     try {
-      const { data, error } = await supabase.functions.invoke("ai-advise-set", {
-        body: { session_id: currentSession.id }
+      const { data, error } = await supabase.functions.invoke('ai-advise-set', {
+        body: { 
+          template_exercise_id: templateExerciseId,
+          set_number: setNumber 
+        }
       });
       
       if (error) throw error;
       setAiAdvice(data.advice);
     } catch (error) {
-      console.error("Erreur conseil IA:", error);
+      console.error('Error getting AI advice:', error);
       toast({
         variant: "destructive",
         title: "Erreur lors de la génération du conseil"
@@ -233,22 +244,75 @@ export default function Session() {
   };
 
   // Grouper les exercices par superset
-  const groupedExercises = templateExercises.reduce((acc, ex) => {
-    const group = ex.superset_group || `solo_${ex.id}`;
-    if (!acc[group]) acc[group] = [];
-    acc[group].push(ex);
-    return acc;
-  }, {} as Record<string, typeof templateExercises>);
-
-  const supersetKeys = Object.keys(groupedExercises);
+  const supersets: { [key: string]: typeof templateExercises } = {};
+  templateExercises.forEach(ex => {
+    const group = ex.superset_group || `ex-${ex.id}`;
+    if (!supersets[group]) supersets[group] = [];
+    supersets[group].push(ex);
+  });
+  const supersetKeys = Object.keys(supersets);
   const currentSuperset = supersetKeys[currentSupersetIndex];
-  const currentExercises = currentSuperset ? groupedExercises[currentSuperset] : [];
-  const isSuperset = currentExercises.length > 1;
-
-  // Calculer le repos à utiliser (superset ou exercice)
-  const restSeconds = isSuperset 
-    ? (currentExercises[0]?.superset_rest_seconds || 120)
-    : (currentExercises[0]?.target_rest_seconds || 90);
+  const currentSupersetExercises = supersets[currentSuperset] || [];
+  
+  // Déterminer l'exercice actuel
+  const currentExercise = currentSupersetExercises[currentExerciseIndexInSuperset];
+  
+  // Calculer le nombre de sets complétés pour l'exercice actuel
+  const completedSetsForCurrentExercise = currentExercise 
+    ? sessionSets.filter(s => s.template_exercise_id === currentExercise.id).length 
+    : 0;
+  
+  // Vérifier si tous les supersets sont terminés
+  const areAllSupersetsComplete = supersetKeys.every(key => {
+    return supersets[key].every(ex => {
+      const completedSets = sessionSets.filter(s => s.template_exercise_id === ex.id).length;
+      return completedSets >= (ex.target_sets || 3);
+    });
+  });
+  
+  // Gérer l'avancement automatique après ajout d'une série
+  useEffect(() => {
+    if (!currentExercise || showRestTimer) return;
+    
+    const completedSets = sessionSets.filter(s => s.template_exercise_id === currentExercise.id).length;
+    
+    // Si on a complété un set pour cet exercice
+    if (completedSets >= currentSetNumber) {
+      // Passer à l'exercice suivant dans le superset
+      if (currentExerciseIndexInSuperset < currentSupersetExercises.length - 1) {
+        setCurrentExerciseIndexInSuperset(prev => prev + 1);
+      } else {
+        // On a terminé tous les exercices du superset pour ce set
+        const minCompletedSets = Math.min(
+          ...currentSupersetExercises.map(ex => 
+            sessionSets.filter(s => s.template_exercise_id === ex.id).length
+          )
+        );
+        const maxTargetSets = Math.max(
+          ...currentSupersetExercises.map(ex => ex.target_sets || 3)
+        );
+        
+        if (minCompletedSets < maxTargetSets) {
+          // Démarrer le timer de repos puis recommencer au premier exercice
+          setShowRestTimer(true);
+        } else {
+          // Superset terminé, passer au suivant
+          if (currentSupersetIndex < supersetKeys.length - 1) {
+            setCurrentSupersetIndex(prev => prev + 1);
+            setCurrentExerciseIndexInSuperset(0);
+            setCurrentSetNumber(1);
+          }
+        }
+      }
+    }
+  }, [sessionSets, currentExercise, currentExerciseIndexInSuperset, currentSupersetExercises, showRestTimer, currentSetNumber, currentSupersetIndex, supersetKeys.length]);
+  
+  // Gérer la fin du timer de repos
+  const handleRestComplete = () => {
+    setShowRestTimer(false);
+    setCurrentExerciseIndexInSuperset(0);
+    setCurrentSetNumber(prev => prev + 1);
+  };
 
   if (isLoading) {
     return (
@@ -312,151 +376,132 @@ export default function Session() {
   // Session en cours
   return (
     <Layout>
-      <div className="container mx-auto p-4 space-y-4">
-        {/* En-tête avec chrono */}
-        <Card className="bg-primary text-primary-foreground">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <h1 className="text-2xl font-bold">
-                  {currentSession.planned_workouts?.workout_templates?.name || "Séance libre"}
-                </h1>
-                <p className="text-sm opacity-90">
-                  Démarrée {formatDistanceToNow(new Date(currentSession.started_at), { 
-                    addSuffix: true, 
-                    locale: fr 
-                  })}
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <div className="flex items-center gap-2 text-3xl font-mono">
-                    <Clock className="h-6 w-6" />
-                    {formatElapsedTime(elapsedTime)}
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowDeleteDialog(true)}
-                  className="text-primary-foreground hover:bg-primary-foreground/20"
-                >
-                  <Trash2 className="h-5 w-5" />
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Navigation superset */}
-        <div className="flex items-center justify-between gap-4">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setCurrentSupersetIndex(Math.max(0, currentSupersetIndex - 1))}
-            disabled={currentSupersetIndex === 0}
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          
-          <div className="flex-1 text-center">
-            <div className="text-sm text-muted-foreground">
-              {isSuperset ? "Superset" : "Exercice"} {currentSupersetIndex + 1} / {supersetKeys.length}
-            </div>
-            {isSuperset && currentExercises[0]?.superset_group && (
-              <Badge variant="secondary" className="mt-1">
-                Superset {currentExercises[0].superset_group}
-              </Badge>
-            )}
-          </div>
-          
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setCurrentSupersetIndex(Math.min(supersetKeys.length - 1, currentSupersetIndex + 1))}
-            disabled={currentSupersetIndex === supersetKeys.length - 1}
-          >
-            <ChevronRight className="h-5 w-5" />
-          </Button>
-        </div>
-
-        {/* Conseil IA */}
-        {aiAdvice && (
-          <Card className="bg-accent/20 border-accent">
+      <div className="container mx-auto p-4">
+        <div className="space-y-4">
+          {/* En-tête */}
+          <Card>
             <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Sparkles className="h-4 w-4" />
-                Conseil IA
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <CardTitle className="text-2xl">
+                    {currentSession.planned_workouts?.workout_templates?.name || "Séance"}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Démarrée {formatDistanceToNow(new Date(currentSession.started_at), { 
+                      addSuffix: true,
+                      locale: fr 
+                    })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Clock className="h-5 w-5" />
+                  <span className="text-2xl font-mono">{formatElapsedTime(elapsedTime)}</span>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm">{aiAdvice}</p>
+          </Card>
+
+          {/* Progression */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  Superset {currentSupersetIndex + 1} / {supersetKeys.length}
+                </span>
+                {currentExercise && (
+                  <span className="text-muted-foreground">
+                    Série {currentSetNumber} / {currentExercise.target_sets || 3}
+                  </span>
+                )}
+              </div>
             </CardContent>
           </Card>
-        )}
 
-        <Button
-          variant="outline"
-          onClick={getAIAdvice}
-          disabled={isLoadingAdvice}
-          className="w-full"
-        >
-          <Sparkles className="h-4 w-4 mr-2" />
-          {isLoadingAdvice ? "Génération..." : "Obtenir un conseil IA"}
-        </Button>
+          {areAllSupersetsComplete ? (
+            <Card className="border-primary">
+              <CardHeader>
+                <CardTitle className="text-center">🎉 Séance terminée !</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-center text-muted-foreground">
+                  Félicitations ! Vous avez terminé tous les exercices.
+                </p>
+                <Button
+                  onClick={() => finishSessionMutation.mutate()}
+                  disabled={finishSessionMutation.isPending}
+                  className="w-full"
+                  size="lg"
+                >
+                  Terminer la séance
+                </Button>
+              </CardContent>
+            </Card>
+          ) : showRestTimer ? (
+            <Card>
+              <CardContent className="pt-6">
+                <RestTimer
+                  targetSeconds={currentSupersetExercises[0]?.superset_rest_seconds || currentSupersetExercises[0]?.target_rest_seconds || 90}
+                  onComplete={handleRestComplete}
+                />
+              </CardContent>
+            </Card>
+          ) : currentExercise ? (
+            <div className="space-y-4">
+              {aiAdvice && (
+                <Card className="border-primary/20 bg-primary/5">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Sparkles className="h-4 w-4" />
+                      Conseil IA
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm">{aiAdvice}</p>
+                  </CardContent>
+                </Card>
+              )}
 
-        {/* Superset actuel */}
-        <Card className={isSuperset ? "border-accent border-2" : ""}>
-          <CardContent className="pt-6 space-y-6">
-            {currentExercises.map(ex => (
               <SessionExercise
-                key={ex.id}
-                templateExercise={ex}
+                key={`${currentExercise.id}-${currentSetNumber}`}
+                templateExercise={currentExercise}
                 sessionId={currentSession.id}
-                sessionSets={sessionSets.filter(s => s.template_exercise_id === ex.id)}
+                sessionSets={sessionSets.filter(s => s.template_exercise_id === currentExercise.id)}
               />
-            ))}
-          </CardContent>
-        </Card>
+            </div>
+          ) : null}
 
-        {/* Timer de repos */}
-        <RestTimer
-          targetSeconds={restSeconds}
-          onComplete={() => toast({ title: "Repos terminé !" })}
-        />
-
-        {/* Bouton terminer */}
-        <Button 
-          onClick={() => finishSessionMutation.mutate()}
-          disabled={finishSessionMutation.isPending}
-          className="w-full"
-          size="lg"
-          variant="default"
-        >
-          Terminer la séance
-        </Button>
-
-        {/* Dialog de confirmation de suppression */}
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Supprimer cette séance ?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Cette action est irréversible. La séance et tous les sets enregistrés seront définitivement supprimés.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Annuler</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => deleteSessionMutation.mutate()}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Supprimer
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          {!areAllSupersetsComplete && (
+            <Button
+              variant="destructive"
+              onClick={() => setShowDeleteDialog(true)}
+              className="w-full"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Supprimer la séance
+            </Button>
+          )}
+        </div>
       </div>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette séance ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Toutes les données de cette séance seront perdues.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteSessionMutation.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

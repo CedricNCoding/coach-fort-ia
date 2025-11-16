@@ -6,22 +6,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { Clock, Play, Trash2 } from "lucide-react";
+import { Clock, Play, Trash2, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
 import SessionExercise from "@/components/SessionExercise";
+import RestTimer from "@/components/RestTimer";
+import { Badge } from "@/components/ui/badge";
 
-/**
- * Page "Séance du jour"
- * Affiche la session en cours ou propose d'en démarrer une
- */
 export default function Session() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [currentSupersetIndex, setCurrentSupersetIndex] = useState(0);
+  const [aiAdvice, setAiAdvice] = useState<string | null>(null);
+  const [isLoadingAdvice, setIsLoadingAdvice] = useState(false);
 
   // Charger la session en cours
   const { data: currentSession, isLoading } = useQuery({
@@ -197,6 +198,29 @@ export default function Session() {
     }
   });
 
+  // Obtenir des conseils IA
+  const getAIAdvice = async () => {
+    if (!currentSession?.id) return;
+    
+    setIsLoadingAdvice(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-advise-set", {
+        body: { session_id: currentSession.id }
+      });
+      
+      if (error) throw error;
+      setAiAdvice(data.advice);
+    } catch (error) {
+      console.error("Erreur conseil IA:", error);
+      toast({
+        variant: "destructive",
+        title: "Erreur lors de la génération du conseil"
+      });
+    } finally {
+      setIsLoadingAdvice(false);
+    }
+  };
+
   // Formater le temps écoulé
   const formatElapsedTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -212,6 +236,16 @@ export default function Session() {
     acc[group].push(ex);
     return acc;
   }, {} as Record<string, typeof templateExercises>);
+
+  const supersetKeys = Object.keys(groupedExercises);
+  const currentSuperset = supersetKeys[currentSupersetIndex];
+  const currentExercises = currentSuperset ? groupedExercises[currentSuperset] : [];
+  const isSuperset = currentExercises.length > 1;
+
+  // Calculer le repos à utiliser (superset ou exercice)
+  const restSeconds = isSuperset 
+    ? (currentExercises[0]?.superset_rest_seconds || 120)
+    : (currentExercises[0]?.target_rest_seconds || 90);
 
   if (isLoading) {
     return (
@@ -311,32 +345,82 @@ export default function Session() {
           </CardContent>
         </Card>
 
-        {/* Liste des exercices groupés */}
-        <div className="space-y-6">
-          {Object.entries(groupedExercises).map(([group, exercises]) => {
-            const isSuperset = exercises.length > 1;
-            
-            return (
-              <Card key={group} className={isSuperset ? "border-accent" : ""}>
-                {isSuperset && (
-                  <CardHeader className="bg-accent/10">
-                    <CardTitle className="text-lg">Superset {group}</CardTitle>
-                  </CardHeader>
-                )}
-                <CardContent className="pt-6 space-y-6">
-                  {exercises.map(ex => (
-                    <SessionExercise
-                      key={ex.id}
-                      templateExercise={ex}
-                      sessionId={currentSession.id}
-                      sessionSets={sessionSets.filter(s => s.template_exercise_id === ex.id)}
-                    />
-                  ))}
-                </CardContent>
-              </Card>
-            );
-          })}
+        {/* Navigation superset */}
+        <div className="flex items-center justify-between gap-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentSupersetIndex(Math.max(0, currentSupersetIndex - 1))}
+            disabled={currentSupersetIndex === 0}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          
+          <div className="flex-1 text-center">
+            <div className="text-sm text-muted-foreground">
+              {isSuperset ? "Superset" : "Exercice"} {currentSupersetIndex + 1} / {supersetKeys.length}
+            </div>
+            {isSuperset && currentExercises[0]?.superset_group && (
+              <Badge variant="secondary" className="mt-1">
+                Superset {currentExercises[0].superset_group}
+              </Badge>
+            )}
+          </div>
+          
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentSupersetIndex(Math.min(supersetKeys.length - 1, currentSupersetIndex + 1))}
+            disabled={currentSupersetIndex === supersetKeys.length - 1}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </Button>
         </div>
+
+        {/* Conseil IA */}
+        {aiAdvice && (
+          <Card className="bg-accent/20 border-accent">
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                Conseil IA
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm">{aiAdvice}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        <Button
+          variant="outline"
+          onClick={getAIAdvice}
+          disabled={isLoadingAdvice}
+          className="w-full"
+        >
+          <Sparkles className="h-4 w-4 mr-2" />
+          {isLoadingAdvice ? "Génération..." : "Obtenir un conseil IA"}
+        </Button>
+
+        {/* Superset actuel */}
+        <Card className={isSuperset ? "border-accent border-2" : ""}>
+          <CardContent className="pt-6 space-y-6">
+            {currentExercises.map(ex => (
+              <SessionExercise
+                key={ex.id}
+                templateExercise={ex}
+                sessionId={currentSession.id}
+                sessionSets={sessionSets.filter(s => s.template_exercise_id === ex.id)}
+              />
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Timer de repos */}
+        <RestTimer
+          targetSeconds={restSeconds}
+          onComplete={() => toast({ title: "Repos terminé !" })}
+        />
 
         {/* Bouton terminer */}
         <Button 

@@ -28,7 +28,8 @@ export default function PlanDetail() {
     target_reps_min: 6,
     target_reps_max: 12,
     target_weight_kg: 0,
-    target_rest_seconds: 90
+    target_rest_seconds: 90,
+    superset_rest_seconds: 120
   });
 
   // Charger le plan
@@ -94,7 +95,8 @@ export default function PlanDetail() {
           target_reps_min: data.target_reps_min,
           target_reps_max: data.target_reps_max,
           target_weight_kg: data.target_weight_kg || null,
-          target_rest_seconds: data.target_rest_seconds
+          target_rest_seconds: data.target_rest_seconds,
+          superset_rest_seconds: data.superset_rest_seconds
         }]);
       
       if (error) throw error;
@@ -110,7 +112,8 @@ export default function PlanDetail() {
         target_reps_min: 6,
         target_reps_max: 12,
         target_weight_kg: 0,
-        target_rest_seconds: 90
+        target_rest_seconds: 90,
+        superset_rest_seconds: 120
       });
     }
   });
@@ -300,9 +303,29 @@ export default function PlanDetail() {
               <Card key={group} className={exercises.length > 1 ? "border-l-4 border-l-accent" : ""}>
                 <CardHeader>
                   {exercises.length > 1 && (
-                    <Badge variant="secondary" className="w-fit mb-2">
-                      Superset {exercises[0].superset_group}
-                    </Badge>
+                    <div className="space-y-3">
+                      <Badge variant="secondary" className="w-fit">
+                        Superset {exercises[0].superset_group}
+                      </Badge>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Repos superset (s)</Label>
+                        <Input
+                          type="number"
+                          value={exercises[0].superset_rest_seconds || 120}
+                          onChange={(e) => {
+                            const newValue = parseInt(e.target.value);
+                            // Mettre à jour tous les exercices du superset
+                            exercises.forEach(ex => {
+                              updateExerciseMutation.mutate({
+                                exerciseId: ex.id,
+                                updates: { superset_rest_seconds: newValue }
+                              });
+                            });
+                          }}
+                          className="h-8 w-32"
+                        />
+                      </div>
+                    </div>
                   )}
                 </CardHeader>
                 <CardContent className="space-y-3">

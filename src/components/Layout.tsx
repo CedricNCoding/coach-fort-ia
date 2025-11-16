@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Calendar, Dumbbell, ClipboardList, BookOpen, Settings } from "lucide-react";
+import { Calendar, Dumbbell, ClipboardList, BookOpen, Settings, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LayoutProps {
@@ -16,7 +16,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { path: "/calendrier", icon: Calendar, label: "Calendrier" },
-    { path: "/session", icon: Dumbbell, label: "Séance" },
+    { path: "/historique", icon: History, label: "Historique" },
     { path: "/plans", icon: ClipboardList, label: "Plans" },
     { path: "/exercices", icon: BookOpen, label: "Exercices" },
     { path: "/reglages-ia", icon: Settings, label: "IA" },

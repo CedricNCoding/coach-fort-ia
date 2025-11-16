@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Plus, AlertCircle } from "lucide-react";
+import { calculateDeloadTargets } from "@/lib/deload-utils";
 import RestTimer from "./RestTimer";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Database } from "@/integrations/supabase/types";
@@ -23,25 +24,47 @@ interface SessionExerciseProps {
   templateExercise: TemplateExercise;
   sessionId: number;
   sessionSets: SessionSet[];
+  isDeload?: boolean;
+  deloadFactor?: number;
 }
 
 /**
  * Composant pour afficher un exercice dans une séance
  * Permet de saisir les sets avec reps, poids, difficulté, douleur
  */
-export default function SessionExercise({ templateExercise, sessionId, sessionSets }: SessionExerciseProps) {
+export default function SessionExercise({ 
+  templateExercise, 
+  sessionId, 
+  sessionSets,
+  isDeload = false,
+  deloadFactor = 0.75
+}: SessionExerciseProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showAddSet, setShowAddSet] = useState(false);
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [aiAdvice, setAiAdvice] = useState<string>("");
 
-  // Formulaire de set - préremplir avec le dernier set réalisé
+  // Calculer les cibles effectives (normales ou décharge)
+  const effectiveTargets = isDeload 
+    ? calculateDeloadTargets(templateExercise, deloadFactor)
+    : {
+        sets: templateExercise.target_sets,
+        weight_kg: templateExercise.target_weight_kg,
+        reps_min: templateExercise.target_reps_min,
+        reps_max: templateExercise.target_reps_max,
+        time_seconds: templateExercise.target_time_seconds,
+        rest_seconds: templateExercise.target_rest_seconds
+      };
+
+  // Formulaire de set - préremplir avec le dernier set réalisé ou cibles effectives
   const lastCompletedSet = sessionSets.length > 0 ? sessionSets[sessionSets.length - 1] : null;
   const [setForm, setSetForm] = useState({
-    reps: lastCompletedSet?.reps || templateExercise.target_reps_max || 12,
-    time_seconds: lastCompletedSet?.time_seconds || templateExercise.target_time_seconds || 0,
-    weight_kg: lastCompletedSet ? Number(lastCompletedSet.weight_kg) : Number(templateExercise.next_target_weight_kg || templateExercise.target_weight_kg || 0),
+    reps: lastCompletedSet?.reps || effectiveTargets.reps_max || 12,
+    time_seconds: lastCompletedSet?.time_seconds || effectiveTargets.time_seconds || 0,
+    weight_kg: lastCompletedSet 
+      ? Number(lastCompletedSet.weight_kg) 
+      : Number(effectiveTargets.weight_kg || templateExercise.next_target_weight_kg || templateExercise.target_weight_kg || 0),
     perceived_difficulty: lastCompletedSet?.perceived_difficulty || 7,
     pain: false,
     pain_notes: "",

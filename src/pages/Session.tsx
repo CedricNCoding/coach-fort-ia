@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { Clock, Play, CheckCircle } from "lucide-react";
+import { Clock, Play, CheckCircle, TrendingDown } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
@@ -24,7 +25,7 @@ export default function Session() {
   const [currentSetNumber, setCurrentSetNumber] = useState(1);
   const [showRestTimer, setShowRestTimer] = useState(false);
 
-  // Charger la session en cours
+  // Charger la session en cours avec les infos de décharge
   const { data: currentSession, isLoading } = useQuery({
     queryKey: ["current_session"],
     queryFn: async () => {
@@ -39,6 +40,10 @@ export default function Session() {
       return data;
     }
   });
+
+  // Vérifier si la session est en décharge
+  const isDeloadSession = currentSession?.planned_workouts?.is_deload || false;
+  const deloadFactor = currentSession?.planned_workouts?.deload_factor || 0.75;
 
   // Charger les planned_workouts d'aujourd'hui
   const { data: todayWorkouts = [] } = useQuery({

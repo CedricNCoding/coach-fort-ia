@@ -93,7 +93,9 @@ export type Database = {
         Row: {
           created_at: string | null
           date: string
+          deload_factor: number | null
           id: number
+          is_deload: boolean | null
           notes: string | null
           slot: number
           status: string | null
@@ -103,7 +105,9 @@ export type Database = {
         Insert: {
           created_at?: string | null
           date: string
+          deload_factor?: number | null
           id?: number
+          is_deload?: boolean | null
           notes?: string | null
           slot: number
           status?: string | null
@@ -113,7 +117,9 @@ export type Database = {
         Update: {
           created_at?: string | null
           date?: string
+          deload_factor?: number | null
           id?: number
+          is_deload?: boolean | null
           notes?: string | null
           slot?: number
           status?: string | null

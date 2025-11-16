@@ -199,6 +199,25 @@ export default function PlanDetail() {
     updateRecurringDaysMutation.mutate(newDays);
   };
 
+  const handleScheduleNow = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('auto-schedule-workouts');
+      if (error) throw error;
+      
+      queryClient.invalidateQueries({ queryKey: ["planned_workouts"] });
+      toast({ 
+        title: "Planification effectuée", 
+        description: `${data.created} séance(s) créée(s)` 
+      });
+    } catch (error) {
+      console.error("Schedule error:", error);
+      toast({ 
+        variant: "destructive", 
+        title: "Erreur de planification" 
+      });
+    }
+  };
+
   const daysOfWeek = [
     { value: 1, label: "Lundi" },
     { value: 2, label: "Mardi" },
@@ -378,6 +397,13 @@ export default function PlanDetail() {
                 <Badge variant="secondary">
                   Planifié {recurringDays.length} jour{recurringDays.length > 1 ? "s" : ""} par semaine
                 </Badge>
+                <Button 
+                  onClick={handleScheduleNow} 
+                  variant="outline" 
+                  size="sm"
+                >
+                  Planifier maintenant
+                </Button>
               </div>
             )}
           </CardContent>

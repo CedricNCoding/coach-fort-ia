@@ -301,9 +301,22 @@ RÉPONDS UNIQUEMENT avec le JSON demandé, sans texte avant ou après.`;
         const te = templateExercises.find((t: any) => t.id === ex.template_exercise_id);
         if (!te) return ex;
 
-        const currentWeight = Number(te.target_weight_kg || 0);
-        const maxWeight = currentWeight * 1.05;
-        const minWeight = currentWeight * 0.95;
+        // Trouver le poids réellement utilisé pendant la séance
+        const sets = sessionSets.filter((s: any) => s.template_exercise_id === te.id && s.is_warmup === 0);
+        const actualWeight = sets.length > 0 
+          ? Math.max(...sets.map((s: any) => Number(s.weight_kg)))
+          : Number(te.target_weight_kg || 0);
+        
+        // Si aucun poids de référence, on garde la suggestion de l'IA telle quelle
+        if (actualWeight === 0) {
+          return {
+            ...ex,
+            next_target_sets: Math.min(ex.next_target_sets, (te.target_sets || 3) + 1)
+          };
+        }
+
+        const maxWeight = actualWeight * 1.05;
+        const minWeight = actualWeight * 0.95;
 
         return {
           ...ex,

@@ -36,11 +36,12 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [aiAdvice, setAiAdvice] = useState<string>("");
 
-  // Formulaire de set
+  // Formulaire de set - préremplir avec le dernier set réalisé
+  const lastCompletedSet = sessionSets.length > 0 ? sessionSets[sessionSets.length - 1] : null;
   const [setForm, setSetForm] = useState({
-    reps: templateExercise.target_reps_max || 12,
-    weight_kg: Number(templateExercise.next_target_weight_kg || templateExercise.target_weight_kg || 0),
-    perceived_difficulty: 7,
+    reps: lastCompletedSet?.reps || templateExercise.target_reps_max || 12,
+    weight_kg: lastCompletedSet ? Number(lastCompletedSet.weight_kg) : Number(templateExercise.next_target_weight_kg || templateExercise.target_weight_kg || 0),
+    perceived_difficulty: lastCompletedSet?.perceived_difficulty || 7,
     pain: false,
     pain_notes: "",
     is_warmup: false
@@ -84,8 +85,10 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
   });
 
   // Charger le conseil IA
+  const [isLoadingAdvice, setIsLoadingAdvice] = useState(false);
   const loadAiAdviceMutation = useMutation({
     mutationFn: async () => {
+      setIsLoadingAdvice(true);
       const { data, error } = await supabase.functions.invoke("ai-advise-set", {
         body: {
           session_id: sessionId,
@@ -98,9 +101,11 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
     },
     onSuccess: (advice) => {
       setAiAdvice(advice);
+      setIsLoadingAdvice(false);
     },
     onError: () => {
-      setAiAdvice("Vise un ressenti 7-8/10, difficile mais contrôlé, environ 1-2 reps en réserve.");
+      setAiAdvice("Contrôle la descente, pause courte, remonte avec puissance. Vise 7-8/10, difficile mais maîtrisé.");
+      setIsLoadingAdvice(false);
     }
   });
 
@@ -129,6 +134,18 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["session_sets"] });
       toast({ title: "Set enregistré" });
+      
+      // Préremplir avec les valeurs du set qui vient d'être enregistré
+      setSetForm(prev => ({
+        ...prev,
+        reps: setForm.reps,
+        weight_kg: setForm.weight_kg,
+        perceived_difficulty: setForm.perceived_difficulty,
+        pain: false,
+        pain_notes: "",
+        is_warmup: false
+      }));
+      
       setShowAddSet(false);
       
       // Démarrer le minuteur de repos si ce n'est pas un échauffement
@@ -164,6 +181,15 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
           {templateExercise.exercises.muscle_group} • {templateExercise.exercises.equipment}
         </p>
       </div>
+
+      {/* Conseil IA */}
+      {aiAdvice && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="pt-4">
+            <p className="text-sm font-medium">💡 {aiAdvice}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Cibles actuelles */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
@@ -234,12 +260,7 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
       <div className="flex gap-2">
         {!showAddSet ? (
           <>
-            <Button onClick={() => {
-              setShowAddSet(true);
-              if (!aiAdvice) {
-                loadAiAdviceMutation.mutate();
-              }
-            }} className="flex-1">
+            <Button onClick={() => setShowAddSet(true)} className="flex-1">
               <Plus className="h-4 w-4 mr-2" />
               Ajouter un set
             </Button>
@@ -248,6 +269,13 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
                 <Copy className="h-4 w-4" />
               </Button>
             )}
+            <Button 
+              onClick={() => loadAiAdviceMutation.mutate()} 
+              variant="outline"
+              disabled={loadAiAdviceMutation.isPending}
+            >
+              {loadAiAdviceMutation.isPending ? "..." : "💡 Conseil"}
+            </Button>
           </>
         ) : (
           <Card className="w-full">

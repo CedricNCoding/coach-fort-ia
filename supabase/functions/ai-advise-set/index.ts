@@ -6,10 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-/**
- * Edge function pour générer un conseil IA avant un set
- * Utilise les paramètres IA de l'utilisateur ou retourne un conseil par défaut
- */
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -23,31 +19,24 @@ serve(async (req) => {
     );
 
     const { session_id, template_exercise_id } = await req.json();
-
-    // Récupérer l'utilisateur
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-    if (userError || !user) {
-      throw new Error('Non authentifié');
-    }
+    if (userError || !user) throw new Error('Non authentifié');
 
-    // Récupérer les paramètres IA
     const { data: aiSettings } = await supabaseClient
       .from('ai_settings')
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
 
-    // Si pas de settings IA, retourner un conseil par défaut
     if (!aiSettings || !aiSettings.api_key) {
       return new Response(
         JSON.stringify({ 
-          advice: "Vise un ressenti 7-8/10, difficile mais contrôlé, environ 1-2 reps en réserve." 
+          advice: "Contrôle la descente, pause courte en bas, remonte avec puissance. Vise 7-8/10, difficile mais maîtrisé." 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Récupérer le template exercise
     const { data: templateExercise, error: templateError } = await supabaseClient
       .from('workout_template_exercises')
       .select('*, exercises(*), workout_templates(*)')
@@ -56,7 +45,6 @@ serve(async (req) => {
 
     if (templateError) throw templateError;
 
-    // Récupérer la dernière séance pour cet exercice
     const { data: lastSets } = await supabaseClient
       .from('session_sets')
       .select('*, sessions!inner(user_id, status, finished_at)')
@@ -82,55 +70,56 @@ serve(async (req) => {
       };
     }
 
-    // Construire le prompt
-    const systemPrompt = `Tu es un coach de musculation expérimenté, spécialisé pour des pratiquants de plus de 40 ans. 
-Tu réponds avec UNE SEULE phrase très courte en français expliquant le ressenti à viser sur ce set.
+    const systemPrompt = `Tu es un coach de musculation expérimenté pour pratiquants de plus de 40 ans. 
+Tu donnes UN SEUL conseil COURT (15-20 mots max) sur l'exécution technique et le ressenti à viser.
 
-Échelle de difficulté :
-- 6/10 : assez facile, 3-4 reps en réserve
-- 7/10 : difficile mais contrôlé, ~2 reps en réserve
-- 8/10 : très difficile, 1 rep en réserve
-- 9/10 : quasi échec, 0 rep en réserve
-- 10/10 : échec complet`;
+Format: "[Point technique] + [Ressenti cible]"
+Exemple: "Contrôle la descente 2-3 sec, remonte explosif. Vise 7-8/10, difficile mais maîtrisé."
 
-    const userPrompt = `Exercice : ${templateExercise.exercises.name} (${templateExercise.exercises.muscle_group})
-Objectif du plan : ${templateExercise.workout_templates?.goal || 'non défini'}
-Rep range cible : ${templateExercise.target_reps_min}-${templateExercise.target_reps_max} reps
-Poids cible : ${Number(templateExercise.next_target_weight_kg || templateExercise.target_weight_kg)} kg
-${lastPerformance ? `Dernière perf : ${lastPerformance.reps} × ${lastPerformance.weight_kg} kg (difficulté ${lastPerformance.avg_difficulty.toFixed(1)}/10)` : 'Pas de données de la dernière séance'}
+Échelle de ressenti:
+- 6/10: Assez facile, 3-4 reps en réserve
+- 7/10: Difficile contrôlé, ~2 reps en réserve
+- 8/10: Très difficile, 1 rep en réserve
+- 9/10: Quasi échec
+- 10/10: Échec complet`;
 
-Donne un conseil en UNE phrase sur le ressenti à viser.`;
+    const userPrompt = `Exercice: ${templateExercise.exercises.name} (${templateExercise.exercises.muscle_group})
+Objectif: ${templateExercise.workout_templates?.goal || 'non défini'}
+Rep range: ${templateExercise.target_reps_min}-${templateExercise.target_reps_max} reps
+Poids cible: ${Number(templateExercise.next_target_weight_kg || templateExercise.target_weight_kg)} kg
+${lastPerformance ? `Dernière perf: ${lastPerformance.reps} reps × ${lastPerformance.weight_kg} kg (ressenti ${lastPerformance.avg_difficulty.toFixed(1)}/10)` : 'Première fois'}
 
-    // Appel à l'IA
+Donne UN conseil court sur la technique d'exécution + le ressenti à viser.`;
+
     const response = await fetch(aiSettings.base_url, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${aiSettings.api_key}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: aiSettings.model_name,
+        model: aiSettings.model_name || 'gpt-4.1-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        max_completion_tokens: 100
-      }),
+        temperature: 0.7,
+        max_tokens: 100
+      })
     });
 
     if (!response.ok) {
-      console.error('Erreur API IA:', await response.text());
-      // Fallback
+      console.error('AI API error:', response.status, await response.text());
       return new Response(
         JSON.stringify({ 
-          advice: "Vise un ressenti 7-8/10, difficile mais contrôlé, environ 1-2 reps en réserve." 
+          advice: "Contrôle la descente, pause courte, remonte avec puissance. Vise 7-8/10, difficile mais maîtrisé." 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const data = await response.json();
-    const advice = data.choices?.[0]?.message?.content || "Vise un ressenti 7-8/10.";
+    const advice = data.choices?.[0]?.message?.content || "Contrôle la descente, remonte explosif. Vise 7-8/10.";
 
     return new Response(
       JSON.stringify({ advice }),
@@ -138,10 +127,10 @@ Donne un conseil en UNE phrase sur le ressenti à viser.`;
     );
 
   } catch (error) {
-    console.error('Erreur ai-advise-set:', error);
+    console.error('Error in ai-advise-set:', error);
     return new Response(
       JSON.stringify({ 
-        advice: "Vise un ressenti 7-8/10, difficile mais contrôlé, environ 1-2 reps en réserve." 
+        advice: "Contrôle la descente, pause courte, remonte avec puissance. Vise 7-8/10, difficile mais maîtrisé." 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

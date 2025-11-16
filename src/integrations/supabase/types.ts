@@ -23,6 +23,8 @@ export type Database = {
           model_name: string | null
           updated_at: string | null
           user_id: string
+          user_needs: string | null
+          user_role: string | null
         }
         Insert: {
           api_key?: string | null
@@ -32,6 +34,8 @@ export type Database = {
           model_name?: string | null
           updated_at?: string | null
           user_id: string
+          user_needs?: string | null
+          user_role?: string | null
         }
         Update: {
           api_key?: string | null
@@ -41,6 +45,8 @@ export type Database = {
           model_name?: string | null
           updated_at?: string | null
           user_id?: string
+          user_needs?: string | null
+          user_role?: string | null
         }
         Relationships: []
       }

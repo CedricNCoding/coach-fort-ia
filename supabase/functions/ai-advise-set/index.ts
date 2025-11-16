@@ -73,6 +73,9 @@ serve(async (req) => {
     const systemPrompt = `Tu es un coach de musculation expérimenté pour pratiquants de plus de 40 ans. 
 Tu donnes UN SEUL conseil COURT (15-20 mots max) sur l'exécution technique et le ressenti à viser.
 
+${aiSettings.user_role ? `Profil : ${aiSettings.user_role}` : ''}
+${aiSettings.user_needs ? `Besoins : ${aiSettings.user_needs}` : ''}
+
 Format: "[Point technique] + [Ressenti cible]"
 Exemple: "Contrôle la descente 2-3 sec, remonte explosif. Vise 7-8/10, difficile mais maîtrisé."
 

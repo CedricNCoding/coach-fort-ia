@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
 import { Brain, Loader2 } from "lucide-react";
 
 /**
@@ -19,7 +20,9 @@ export default function AISettings() {
   const [formData, setFormData] = useState({
     api_key: "",
     model_name: "gpt-4.1-mini",
-    base_url: "https://api.openai.com/v1/chat/completions"
+    base_url: "https://api.openai.com/v1/chat/completions",
+    user_role: "",
+    user_needs: ""
   });
 
   // Charger les paramètres actuels
@@ -38,7 +41,9 @@ export default function AISettings() {
         setFormData({
           api_key: "", // Ne pas afficher la clé pour la sécurité
           model_name: data.model_name || "gpt-4.1-mini",
-          base_url: data.base_url || "https://api.openai.com/v1/chat/completions"
+          base_url: data.base_url || "https://api.openai.com/v1/chat/completions",
+          user_role: data.user_role || "",
+          user_needs: data.user_needs || ""
         });
       }
       
@@ -57,6 +62,8 @@ export default function AISettings() {
         user_id: user.id,
         model_name: formData.model_name,
         base_url: formData.base_url,
+        user_role: formData.user_role,
+        user_needs: formData.user_needs,
         // Ne mettre à jour api_key que si elle est fournie
         ...(formData.api_key && { api_key: formData.api_key })
       };
@@ -109,6 +116,43 @@ export default function AISettings() {
           <Brain className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-bold">Réglages IA</h1>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Profil utilisateur</CardTitle>
+            <CardDescription>
+              Décrivez votre rôle et vos besoins pour que l'IA adapte ses conseils.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="user_role">Votre rôle / profil</Label>
+              <Input
+                id="user_role"
+                value={formData.user_role}
+                onChange={(e) => setFormData({ ...formData, user_role: e.target.value })}
+                placeholder="Ex: Sportif 45 ans, reprenant l'entraînement après 5 ans d'arrêt"
+              />
+              <p className="text-xs text-muted-foreground">
+                Décrivez votre âge, niveau, historique sportif, etc.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="user_needs">Vos besoins spécifiques</Label>
+              <Textarea
+                id="user_needs"
+                value={formData.user_needs}
+                onChange={(e) => setFormData({ ...formData, user_needs: e.target.value })}
+                placeholder="Ex: Eviter les douleurs lombaires, renforcer le haut du corps, améliorer la mobilité"
+                className="min-h-[80px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                Indiquez vos objectifs, limitations, zones à renforcer ou éviter, etc.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

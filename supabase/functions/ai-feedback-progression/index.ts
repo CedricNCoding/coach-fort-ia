@@ -206,6 +206,9 @@ serve(async (req) => {
     const systemPrompt = `Tu es un coach de musculation expérimenté, spécialisé pour des pratiquants de plus de 40 ans.
 Tu dois analyser la séance et proposer des ajustements selon les règles suivantes :
 
+${aiSettings.user_role ? `Profil de l'utilisateur : ${aiSettings.user_role}` : ''}
+${aiSettings.user_needs ? `Besoins spécifiques : ${aiSettings.user_needs}` : ''}
+
 Échelle de difficulté :
 - 6/10 : assez facile, 3-4 reps en réserve
 - 7/10 : difficile mais contrôlé, ~2 reps en réserve

@@ -23,12 +23,15 @@ useEffect(() => {
 }, [targetSeconds, autoStart]);
 
 useEffect(() => {
-  if (isPaused || timeLeft <= 0 || !isVisible) return;
+  if (isPaused || !isVisible) return;
+  if (timeLeft <= 0) {
+    onComplete();
+    return;
+  }
 
   const interval = setInterval(() => {
     setTimeLeft(prev => {
       if (prev <= 1) {
-        clearInterval(interval);
         onComplete();
         return 0;
       }
@@ -37,7 +40,7 @@ useEffect(() => {
   }, 1000);
 
   return () => clearInterval(interval);
-}, [timeLeft, isPaused, onComplete, isVisible]);
+}, [isPaused, isVisible, onComplete]);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);

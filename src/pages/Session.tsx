@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { Clock, Play, Trash2, Sparkles } from "lucide-react";
+import { Clock, Play, Trash2 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
@@ -23,8 +23,6 @@ export default function Session() {
   const [currentExerciseIndexInSuperset, setCurrentExerciseIndexInSuperset] = useState(0);
   const [currentSetNumber, setCurrentSetNumber] = useState(1);
   const [showRestTimer, setShowRestTimer] = useState(false);
-  const [aiAdvice, setAiAdvice] = useState<string | null>(null);
-  const [isLoadingAdvice, setIsLoadingAdvice] = useState(false);
 
   // Charger la session en cours
   const { data: currentSession, isLoading } = useQuery({
@@ -209,31 +207,6 @@ export default function Session() {
       });
     }
   });
-
-  // Fonction pour obtenir un conseil IA
-  const getAIAdvice = async (templateExerciseId: number, setNumber: number) => {
-    setIsLoadingAdvice(true);
-    setAiAdvice(null);
-    try {
-      const { data, error } = await supabase.functions.invoke('ai-advise-set', {
-        body: { 
-          template_exercise_id: templateExerciseId,
-          set_number: setNumber 
-        }
-      });
-      
-      if (error) throw error;
-      setAiAdvice(data.advice);
-    } catch (error) {
-      console.error('Error getting AI advice:', error);
-      toast({
-        variant: "destructive",
-        title: "Erreur lors de la génération du conseil"
-      });
-    } finally {
-      setIsLoadingAdvice(false);
-    }
-  };
 
   // Formater le temps écoulé
   const formatElapsedTime = (seconds: number) => {
@@ -449,20 +422,6 @@ export default function Session() {
             </Card>
           ) : currentExercise ? (
             <div className="space-y-4">
-              {aiAdvice && (
-                <Card className="border-primary/20 bg-primary/5">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Sparkles className="h-4 w-4" />
-                      Conseil IA
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm">{aiAdvice}</p>
-                  </CardContent>
-                </Card>
-              )}
-
               <SessionExercise
                 key={`${currentExercise.id}-${currentSetNumber}`}
                 templateExercise={currentExercise}

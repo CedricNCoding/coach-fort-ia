@@ -161,7 +161,9 @@ export default function Session() {
           .from("planned_workouts")
           .update({ status: "completed" })
           .eq("id", currentSession.planned_workout_id);
-        if (pwError) throw pwError;
+        if (pwError) {
+          console.warn("Unable to update planned_workouts status:", pwError);
+        }
       }
 
       return currentSession.id;
@@ -171,10 +173,12 @@ export default function Session() {
       queryClient.invalidateQueries({ queryKey: ["today_workouts"] });
       navigate(`/session-summary/${sessionId}`);
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("Finish session error", error);
       toast({
         variant: "destructive",
-        title: "Erreur lors de la fin de la séance"
+        title: "Erreur lors de la fin de la séance",
+        description: (error as any)?.message || "Une erreur est survenue."
       });
     }
   });

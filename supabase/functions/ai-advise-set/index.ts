@@ -22,13 +22,21 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) throw new Error('Non authentifié');
 
-    const { data: aiSettings } = await supabaseClient
-      .from('ai_settings')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    // Get decrypted API key using secure function
+    const { data: aiSettings, error: settingsError } = await supabaseClient
+      .rpc('get_user_api_key', { _user_id: user.id })
+      .maybeSingle() as { 
+        data: { 
+          api_key: string | null, 
+          model_name: string | null, 
+          base_url: string | null,
+          user_role: string | null,
+          user_needs: string | null
+        } | null, 
+        error: any 
+      };
 
-    if (!aiSettings || !aiSettings.api_key) {
+    if (settingsError || !aiSettings || !aiSettings.api_key) {
       return new Response(
         JSON.stringify({ 
           advice: "Contrôle la descente, pause courte en bas, remonte avec puissance. Vise 7-8/10, difficile mais maîtrisé." 
@@ -94,7 +102,7 @@ ${lastPerformance ? `Dernière perf: ${lastPerformance.reps} reps × ${lastPerfo
 
 Donne UN conseil court sur la technique d'exécution + le ressenti à viser.`;
 
-    const response = await fetch(aiSettings.base_url, {
+    const response = await fetch(aiSettings.base_url || 'https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${aiSettings.api_key}`,

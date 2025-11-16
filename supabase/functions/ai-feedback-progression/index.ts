@@ -133,15 +133,22 @@ serve(async (req) => {
 
     if (templateError) throw templateError;
 
-    // Récupérer les paramètres IA
-    const { data: aiSettings } = await supabaseClient
-      .from('ai_settings')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    // Récupérer les paramètres IA décryptés via fonction sécurisée
+    const { data: aiSettings, error: aiSettingsError } = await supabaseClient
+      .rpc('get_user_api_key', { _user_id: user.id })
+      .maybeSingle() as {
+        data: {
+          api_key: string | null,
+          model_name: string | null,
+          base_url: string | null,
+          user_role: string | null,
+          user_needs: string | null
+        } | null,
+        error: any
+      };
 
     // Si pas d'IA configurée, utiliser uniquement le déterministe
-    if (!aiSettings || !aiSettings.api_key) {
+    if (aiSettingsError || !aiSettings || !aiSettings.api_key) {
       console.log('Pas de paramètres IA, utilisation des règles déterministes');
       
       const exercises = templateExercises.map((te: any) => {
@@ -260,14 +267,14 @@ ${JSON.stringify(exercisesContext, null, 2)}
 RÉPONDS UNIQUEMENT avec le JSON demandé, sans texte avant ou après.`;
 
     try {
-      const response = await fetch(aiSettings.base_url, {
+      const response = await fetch(aiSettings.base_url || 'https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${aiSettings.api_key}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: aiSettings.model_name,
+          model: aiSettings.model_name || 'gpt-4.1-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }

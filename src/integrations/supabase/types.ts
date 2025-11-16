@@ -417,7 +417,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_encryption_key: { Args: never; Returns: string }
+      get_user_api_key: {
+        Args: { _user_id: string }
+        Returns: {
+          api_key: string
+          base_url: string
+          model_name: string
+          user_needs: string
+          user_role: string
+        }[]
+      }
+      set_user_api_key: {
+        Args: {
+          _api_key: string
+          _base_url?: string
+          _model_name?: string
+          _user_id: string
+          _user_needs?: string
+          _user_role?: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

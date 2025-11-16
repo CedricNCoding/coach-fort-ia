@@ -205,29 +205,39 @@ serve(async (req) => {
           weight_kg: Number(s.weight_kg),
           perceived_difficulty: s.perceived_difficulty,
           pain: s.pain,
+          pain_notes: s.pain_notes,
+          actual_rest_seconds: s.actual_rest_seconds,
           is_warmup: s.is_warmup
         }))
       };
     });
 
     const systemPrompt = `Tu es un coach de musculation expérimenté, spécialisé pour des pratiquants de plus de 40 ans.
-Tu dois analyser la séance et proposer des ajustements selon les règles suivantes :
+Tu dois analyser INTÉGRALEMENT la séance en tenant compte de TOUS les ressentis (difficulté perçue, douleurs, temps de repos) pour proposer des ajustements personnalisés.
 
 ${aiSettings.user_role ? `Profil de l'utilisateur : ${aiSettings.user_role}` : ''}
 ${aiSettings.user_needs ? `Besoins spécifiques : ${aiSettings.user_needs}` : ''}
 
-Échelle de difficulté :
+Échelle de difficulté perçue :
 - 6/10 : assez facile, 3-4 reps en réserve
-- 7/10 : difficile mais contrôlé, ~2 reps en réserve
+- 7/10 : difficile mais contrôlé, ~2 reps en réserve (OPTIMAL)
 - 8/10 : très difficile, 1 rep en réserve
 - 9/10 : quasi échec, 0 rep en réserve
 - 10/10 : échec complet
 
+ANALYSE COMPLÈTE REQUISE :
+- Examine chaque set individuellement avec sa difficulté perçue
+- Prends en compte les notes de douleur (pain_notes) pour adapter la progression
+- Analyse les temps de repos réels vs ciblés
+- Considère l'évolution de la fatigue sur l'ensemble de la séance
+
 Règles de progression (OBLIGATOIRES) :
-1. Si douleur (pain = 1) OU plusieurs sets avec difficulté ≥ 9 : RÉDUIRE de -5% la charge et possiblement -1 set
-2. Si meilleur set >= rep max du rep range : AUGMENTER de +2.5% (max +5%)
-3. Si meilleur set dans le rep range : MAINTENIR la charge
-4. Si meilleur set < rep min : RÉDUIRE de -5%
+1. Si douleur (pain = 1) avec notes détaillées : RÉDUIRE de -5% la charge, adapter le volume, proposer des alternatives si nécessaire
+2. Si plusieurs sets avec difficulté ≥ 9 : RÉDUIRE de -5% la charge et possiblement -1 set
+3. Si meilleur set >= rep max du rep range ET difficulté ≤ 8 : AUGMENTER de +2.5% (max +5%)
+4. Si meilleur set dans le rep range ET difficulté correcte (7-8) : MAINTENIR la charge
+5. Si meilleur set < rep min : RÉDUIRE de -5%
+6. Si temps de repos insuffisants affectent les performances : ajuster les recommandations de repos
 
 Limites de sécurité ABSOLUES :
 - Max +5% de charge par séance

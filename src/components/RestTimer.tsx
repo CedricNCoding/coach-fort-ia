@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, X } from "lucide-react";
@@ -14,9 +14,15 @@ export default function RestTimer({ targetSeconds, onComplete, autoStart = false
   const [timeLeft, setTimeLeft] = useState(targetSeconds);
   const [isPaused, setIsPaused] = useState(false);
   const [isVisible, setIsVisible] = useState(autoStart);
-
+  const intervalRef = useRef<number | null>(null);
+  const completedRef = useRef(false);
 useEffect(() => {
   // Reset quand la durée change et auto-démarrer si demandé
+  if (intervalRef.current) {
+    clearInterval(intervalRef.current);
+    intervalRef.current = null;
+  }
+  completedRef.current = false;
   setTimeLeft(targetSeconds);
   setIsPaused(false);
   setIsVisible(autoStart);
@@ -24,23 +30,38 @@ useEffect(() => {
 
 useEffect(() => {
   if (isPaused || !isVisible) return;
-  if (timeLeft <= 0) {
-    onComplete();
-    return;
+  if (timeLeft <= 0) return;
+
+  if (intervalRef.current) {
+    clearInterval(intervalRef.current);
+    intervalRef.current = null;
   }
 
-  const interval = setInterval(() => {
-    setTimeLeft(prev => {
-      if (prev <= 1) {
-        onComplete();
+  intervalRef.current = window.setInterval(() => {
+    setTimeLeft((prev) => {
+      const next = prev - 1;
+      if (next <= 0) {
+        if (!completedRef.current) {
+          completedRef.current = true;
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+          onComplete();
+        }
         return 0;
       }
-      return prev - 1;
+      return next;
     });
   }, 1000);
 
-  return () => clearInterval(interval);
-}, [isPaused, isVisible, onComplete]);
+  return () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+}, [isPaused, isVisible, timeLeft, onComplete]);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -71,7 +92,7 @@ useEffect(() => {
             <Clock className="h-5 w-5 text-accent-foreground" />
             <span className="font-semibold">Repos en cours</span>
           </div>
-          <Button onClick={() => { onCancel ? onCancel() : setIsVisible(false); }} variant="ghost" size="icon">
+          <Button onClick={() => { if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; } completedRef.current = true; onCancel ? onCancel() : setIsVisible(false); }} variant="ghost" size="icon">
             <X className="h-4 w-4" />
           </Button>
         </div>

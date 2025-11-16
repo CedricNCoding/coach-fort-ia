@@ -8,108 +8,62 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Strong Coach IA - Design System Fitness */
-    --background: 210 20% 98%;
-    --foreground: 220 15% 15%;
+    /* Dark Theme - Multicolor Gradient Background */
+    --background: 230 25% 8%;
+    --foreground: 210 20% 95%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 15% 15%;
+    --card: 230 20% 12%;
+    --card-foreground: 210 20% 95%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 15%;
+    --popover: 230 20% 12%;
+    --popover-foreground: 210 20% 95%;
 
-    /* Bleu profond énergique - identité */
-    --primary: 217 91% 45%;
-    --primary-foreground: 0 0% 100%;
+    /* Cyan vibrant pour actions principales */
+    --primary: 185 100% 45%;
+    --primary-foreground: 230 25% 8%;
 
-    /* Bleu plus clair pour variantes */
-    --secondary: 210 40% 92%;
-    --secondary-foreground: 217 91% 35%;
+    /* Violet pour variantes */
+    --secondary: 260 60% 18%;
+    --secondary-foreground: 210 20% 95%;
 
-    --muted: 210 30% 94%;
-    --muted-foreground: 220 10% 50%;
+    --muted: 230 15% 18%;
+    --muted-foreground: 220 10% 65%;
 
-    /* Orange énergique pour actions clés */
-    --accent: 25 95% 55%;
-    --accent-foreground: 0 0% 100%;
+    /* Magenta pour accents */
+    --accent: 320 80% 50%;
+    --accent-foreground: 210 20% 98%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive-foreground: 210 20% 98%;
 
-    /* Succès pour séances complétées */
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
+    /* Vert pour succès */
+    --success: 142 76% 40%;
+    --success-foreground: 210 20% 98%;
 
-    /* Warning pour ajustements */
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    /* Orange pour warnings */
+    --warning: 38 92% 55%;
+    --warning-foreground: 230 25% 8%;
 
-    --border: 220 13% 88%;
-    --input: 220 13% 88%;
-    --ring: 217 91% 45%;
+    --border: 230 20% 20%;
+    --input: 230 20% 20%;
+    --ring: 185 100% 45%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Gradients multicolores sombres */
+    --gradient-primary: linear-gradient(135deg, hsl(230 40% 12%), hsl(260 60% 15%), hsl(230 40% 12%));
+    --gradient-card: linear-gradient(135deg, hsl(230 30% 14%), hsl(260 50% 16%));
+    --gradient-accent: linear-gradient(135deg, hsl(185 100% 25%), hsl(260 60% 25%), hsl(320 80% 25%));
+    --gradient-intense: linear-gradient(135deg, hsl(230 60% 10%), hsl(260 70% 12%), hsl(185 90% 15%));
 
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 220 20% 10%;
-    --foreground: 210 20% 95%;
-
-    --card: 220 18% 13%;
-    --card-foreground: 210 20% 95%;
-
-    --popover: 220 18% 13%;
-    --popover-foreground: 210 20% 95%;
-
-    --primary: 217 91% 55%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 210 20% 95%;
-
-    --muted: 220 15% 18%;
-    --muted-foreground: 220 10% 60%;
-
-    --accent: 25 95% 55%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
-
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-
-    --border: 220 15% 22%;
-    --input: 220 15% 22%;
-    --ring: 217 91% 55%;
-
-    --sidebar-background: 220 18% 13%;
+    --sidebar-background: 230 25% 10%;
     --sidebar-foreground: 210 20% 95%;
-    --sidebar-primary: 217 91% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 15% 18%;
+    --sidebar-primary: 185 100% 45%;
+    --sidebar-primary-foreground: 230 25% 8%;
+    --sidebar-accent: 260 60% 18%;
     --sidebar-accent-foreground: 210 20% 95%;
-    --sidebar-border: 220 15% 22%;
-    --sidebar-ring: 217 91% 55%;
+    --sidebar-border: 230 20% 20%;
+    --sidebar-ring: 185 100% 45%;
   }
 }
 
@@ -119,6 +73,8 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background: var(--gradient-primary);
+    min-height: 100vh;
   }
 }

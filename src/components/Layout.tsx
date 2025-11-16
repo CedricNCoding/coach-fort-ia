@@ -24,14 +24,14 @@ export default function Layout({ children }: LayoutProps) {
   ];
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen">
       {/* Contenu principal avec scroll */}
       <main className="flex-1 overflow-y-auto pb-20">
         {children}
       </main>
 
       {/* Navigation en bas */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border overflow-x-auto pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-lg border-t border-border overflow-x-auto pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center h-12 min-w-max px-1 md:justify-around md:max-w-screen-xl md:mx-auto">
           {navItems.map((item) => {
             const Icon = item.icon;

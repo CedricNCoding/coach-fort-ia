@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { Clock, Play } from "lucide-react";
+import { Clock, Play, Trash2 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
 import SessionExercise from "@/components/SessionExercise";
 
@@ -20,6 +21,7 @@ export default function Session() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Charger la session en cours
   const { data: currentSession, isLoading } = useQuery({
@@ -168,6 +170,33 @@ export default function Session() {
     }
   });
 
+  // Mutation pour supprimer la session en cours
+  const deleteSessionMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentSession?.id) throw new Error("Pas de session en cours");
+      
+      // Supprimer d'abord les sets
+      await supabase
+        .from("session_sets")
+        .delete()
+        .eq("session_id", currentSession.id);
+      
+      // Puis la session
+      const { error } = await supabase
+        .from("sessions")
+        .delete()
+        .eq("id", currentSession.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["current_session"] });
+      queryClient.invalidateQueries({ queryKey: ["today_workouts"] });
+      toast({ title: "Séance supprimée" });
+      setShowDeleteDialog(false);
+    }
+  });
+
   // Formater le temps écoulé
   const formatElapsedTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -251,7 +280,7 @@ export default function Session() {
         <Card className="bg-primary text-primary-foreground">
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
-              <div>
+              <div className="flex-1">
                 <h1 className="text-2xl font-bold">
                   {currentSession.planned_workouts?.workout_templates?.name || "Séance libre"}
                 </h1>
@@ -262,11 +291,21 @@ export default function Session() {
                   })}
                 </p>
               </div>
-              <div className="text-right">
-                <div className="flex items-center gap-2 text-3xl font-mono">
-                  <Clock className="h-6 w-6" />
-                  {formatElapsedTime(elapsedTime)}
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <div className="flex items-center gap-2 text-3xl font-mono">
+                    <Clock className="h-6 w-6" />
+                    {formatElapsedTime(elapsedTime)}
+                  </div>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="text-primary-foreground hover:bg-primary-foreground/20"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -309,6 +348,27 @@ export default function Session() {
         >
           Terminer la séance
         </Button>
+
+        {/* Dialog de confirmation de suppression */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Supprimer cette séance ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Cette action est irréversible. La séance et tous les sets enregistrés seront définitivement supprimés.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteSessionMutation.mutate()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Supprimer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </Layout>
   );

@@ -7,8 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from "date-fns";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -22,6 +23,7 @@ export default function Calendar() {
   const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<1 | 2>(1);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+  const [deleteWorkoutId, setDeleteWorkoutId] = useState<number | null>(null);
 
   // Charger les séances planifiées du mois
   const monthStart = startOfMonth(currentMonth);
@@ -77,6 +79,22 @@ export default function Calendar() {
       toast({ title: "Séance planifiée" });
       setShowPlanDialog(false);
       setSelectedPlanId("");
+    }
+  });
+
+  // Mutation suppression séance planifiée
+  const deletePlannedWorkoutMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase
+        .from("planned_workouts")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["planned_workouts"] });
+      toast({ title: "Séance supprimée" });
+      setDeleteWorkoutId(null);
     }
   });
 
@@ -167,15 +185,25 @@ export default function Calendar() {
                         <div
                           key={workout.id}
                           className={cn(
-                            "text-xs p-1 rounded truncate",
+                            "text-xs p-1 rounded truncate flex items-center justify-between group",
                             getStatusColor(workout.status)
                           )}
                           onClick={(e) => {
                             e.stopPropagation();
-                            // TODO: Afficher détail de la séance planifiée
                           }}
                         >
-                          Slot {workout.slot}: {workout.workout_template?.name}
+                          <span>Slot {workout.slot}: {workout.workout_template?.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteWorkoutId(workout.id);
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
                       ))}
                     </div>
@@ -253,6 +281,27 @@ export default function Calendar() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog de confirmation de suppression */}
+        <AlertDialog open={!!deleteWorkoutId} onOpenChange={(open) => !open && setDeleteWorkoutId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Supprimer cette séance ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Cette action est irréversible. La séance planifiée sera définitivement supprimée.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteWorkoutId && deletePlannedWorkoutMutation.mutate(deleteWorkoutId)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Supprimer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </Layout>
   );

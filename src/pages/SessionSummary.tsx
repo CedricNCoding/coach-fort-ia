@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, Minus, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
 
 /**
@@ -23,6 +24,7 @@ export default function SessionSummary() {
   const [applyToggles, setApplyToggles] = useState<Record<number, boolean>>({});
   const [feedback, setFeedback] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Charger la session
   const { data: session } = useQuery({
@@ -111,28 +113,29 @@ export default function SessionSummary() {
       for (const ex of feedback.exercises) {
         if (!applyToggles[ex.template_exercise_id]) continue;
 
-        // Récupérer les valeurs actuelles
-        const { data: current } = await supabase
-          .from("workout_template_exercises")
-          .select("*")
-          .eq("id", ex.template_exercise_id)
-          .single();
-
+        // Bornes de sécurité
+        const current = templateExercises.find(t => t.id === ex.template_exercise_id);
         if (!current) continue;
+
+        const currentWeight = current.next_target_weight_kg || current.target_weight_kg || 0;
+        const maxWeightIncrease = currentWeight * 1.05;
+        const maxWeightDecrease = currentWeight * 0.95;
+        const safeWeight = Math.min(Math.max(ex.next_target_weight_kg, maxWeightDecrease), maxWeightIncrease);
+        const safeSets = Math.min(ex.next_target_sets, (current.target_sets || 3) + 1);
 
         // Mettre à jour le template
         await supabase
           .from("workout_template_exercises")
           .update({
-            target_sets: ex.next_target_sets,
+            target_sets: safeSets,
             target_reps_min: ex.next_target_reps_min,
             target_reps_max: ex.next_target_reps_max,
-            next_target_weight_kg: ex.next_target_weight_kg,
+            next_target_weight_kg: safeWeight,
             target_difficulty_note: ex.next_target_difficulty_note
           })
           .eq("id", ex.template_exercise_id);
 
-        // Logger dans progression_log
+        // Logger la progression
         await supabase
           .from("progression_log")
           .insert([{
@@ -177,6 +180,30 @@ export default function SessionSummary() {
     }
   });
 
+  // Mutation pour supprimer la session
+  const deleteSessionMutation = useMutation({
+    mutationFn: async () => {
+      // Supprimer d'abord les sets
+      await supabase
+        .from("session_sets")
+        .delete()
+        .eq("session_id", parseInt(sessionId!));
+      
+      // Puis la session
+      const { error } = await supabase
+        .from("sessions")
+        .delete()
+        .eq("id", parseInt(sessionId!));
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
+      toast({ title: "Séance supprimée" });
+      navigate("/calendrier");
+    }
+  });
+
   if (!session) {
     return (
       <Layout>
@@ -201,7 +228,17 @@ export default function SessionSummary() {
   return (
     <Layout>
       <div className="container mx-auto p-4 space-y-6">
-        <h1 className="text-3xl font-bold">Résumé de la séance</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Résumé de la séance</h1>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowDeleteDialog(true)}
+            className="text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="h-5 w-5" />
+          </Button>
+        </div>
 
         {/* Stats globales */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -397,6 +434,27 @@ export default function SessionSummary() {
             </div>
           </>
         )}
+
+        {/* Dialog de confirmation de suppression */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Supprimer cette séance ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Cette action est irréversible. La séance et tous les sets enregistrés seront définitivement supprimés.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteSessionMutation.mutate()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Supprimer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </Layout>
   );

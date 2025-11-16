@@ -10,9 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, ArrowLeft, Trash2, GripVertical, Download, Calendar } from "lucide-react";
+import { Plus, ArrowLeft, Trash2, GripVertical, Download, Calendar, Brain, CheckCircle2, AlertCircle, Lightbulb, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2 } from "lucide-react";
 
 export default function PlanDetail() {
   const { id } = useParams();
@@ -22,6 +24,8 @@ export default function PlanDetail() {
   const [showAddExerciseDialog, setShowAddExerciseDialog] = useState(false);
   const [recurringDays, setRecurringDays] = useState<number[]>([]);
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>("");
+  const [coachAnalysis, setCoachAnalysis] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   
   // Formulaire ajout exercice
   const [exerciseForm, setExerciseForm] = useState({
@@ -232,6 +236,27 @@ export default function PlanDetail() {
     }
   };
 
+  const handleAnalyzePlan = async () => {
+    setIsAnalyzing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-coach-plan', {
+        body: { template_id: parseInt(id!) }
+      });
+      
+      if (error) throw error;
+      setCoachAnalysis(data);
+      toast({ title: "Analyse complétée !" });
+    } catch (error) {
+      console.error("Analysis error:", error);
+      toast({ 
+        variant: "destructive", 
+        title: "Erreur lors de l'analyse"
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const daysOfWeek = [
     { value: 1, label: "Lundi" },
     { value: 2, label: "Mardi" },
@@ -266,6 +291,18 @@ export default function PlanDetail() {
           <Button variant="outline" onClick={handleExportCSV}>
             <Download className="h-4 w-4 mr-2" />
             Exporter CSV
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={handleAnalyzePlan}
+            disabled={isAnalyzing}
+          >
+            {isAnalyzing ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Brain className="h-4 w-4 mr-2" />
+            )}
+            Analyser avec l'IA
           </Button>
           <Dialog open={showAddExerciseDialog} onOpenChange={setShowAddExerciseDialog}>
             <DialogTrigger asChild>
@@ -460,6 +497,83 @@ export default function PlanDetail() {
             )}
           </CardContent>
         </Card>
+
+        {/* Analyse IA du plan */}
+        {coachAnalysis && (
+          <Card className="border-primary/20 bg-gradient-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                Analyse du Coach IA
+                {coachAnalysis.score && (
+                  <Badge variant={coachAnalysis.score >= 80 ? "default" : coachAnalysis.score >= 60 ? "secondary" : "destructive"}>
+                    Score: {coachAnalysis.score}/100
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Analyse générale */}
+              <div className="space-y-2">
+                <p className="text-sm leading-relaxed">{coachAnalysis.analysis}</p>
+              </div>
+
+              {/* Points forts */}
+              {coachAnalysis.strengths && coachAnalysis.strengths.length > 0 && (
+                <Alert className="border-success/50 bg-success/5">
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <AlertDescription>
+                    <div className="font-semibold mb-2">Points forts</div>
+                    <ul className="space-y-1">
+                      {coachAnalysis.strengths.map((strength: string, idx: number) => (
+                        <li key={idx} className="text-sm flex items-start gap-2">
+                          <TrendingUp className="h-4 w-4 mt-0.5 flex-shrink-0 text-success" />
+                          <span>{strength}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Points faibles */}
+              {coachAnalysis.weaknesses && coachAnalysis.weaknesses.length > 0 && (
+                <Alert className="border-warning/50 bg-warning/5">
+                  <AlertCircle className="h-4 w-4 text-warning" />
+                  <AlertDescription>
+                    <div className="font-semibold mb-2">Points d'amélioration</div>
+                    <ul className="space-y-1">
+                      {coachAnalysis.weaknesses.map((weakness: string, idx: number) => (
+                        <li key={idx} className="text-sm flex items-start gap-2">
+                          <span className="text-warning">•</span>
+                          <span>{weakness}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Recommandations */}
+              {coachAnalysis.recommendations && coachAnalysis.recommendations.length > 0 && (
+                <Alert className="border-accent/50 bg-accent/5">
+                  <Lightbulb className="h-4 w-4 text-accent" />
+                  <AlertDescription>
+                    <div className="font-semibold mb-2">Recommandations</div>
+                    <ul className="space-y-1">
+                      {coachAnalysis.recommendations.map((rec: string, idx: number) => (
+                        <li key={idx} className="text-sm flex items-start gap-2">
+                          <span className="text-accent">→</span>
+                          <span>{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {planExercises.length === 0 ? (
           <Card className="border-dashed">

@@ -336,7 +336,19 @@ export default function SessionSummary() {
                   const current = templateExercises.find(t => t.id === ex.template_exercise_id);
                   if (!current) return null;
 
-                  const weightChange = ex.next_target_weight_kg - Number(current.target_weight_kg || 0);
+                  // Déterminer un poids de référence pertinent pour l'affichage (évite le 0.0 kg)
+                  const workSetsForCurrent = sessionSets.filter(
+                    (s) => s.template_exercise_id === current.id && s.is_warmup === 0
+                  );
+                  const actualWeight = workSetsForCurrent.length
+                    ? Math.max(...workSetsForCurrent.map((s) => Number(s.weight_kg)))
+                    : null;
+
+                  const baseWeight = Number(
+                    (actualWeight ?? current.target_weight_kg ?? current.next_target_weight_kg ?? 0)
+                  );
+
+                  const weightChange = ex.next_target_weight_kg - baseWeight;
                   const setsChange = ex.next_target_sets - (current.target_sets || 0);
 
                   return (
@@ -384,7 +396,7 @@ export default function SessionSummary() {
                         <div>
                           <p className="text-muted-foreground">Charge</p>
                           <div className="flex items-center gap-2">
-                            <span>{Number(current.target_weight_kg || 0).toFixed(1)} kg</span>
+                            <span>{baseWeight.toFixed(1)} kg</span>
                             <span>→</span>
                             <span className="font-bold">{ex.next_target_weight_kg.toFixed(1)} kg</span>
                             {weightChange !== 0 && (

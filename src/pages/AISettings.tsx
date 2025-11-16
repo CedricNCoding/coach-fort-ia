@@ -51,43 +51,24 @@ export default function AISettings() {
     }
   });
 
-  // Mutation pour sauvegarder
+  // Mutation pour sauvegarder via edge function sécurisée
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) throw new Error("Non authentifié");
+      const { error } = await supabase.functions.invoke('update-ai-settings', {
+        body: {
+          api_key: formData.api_key || null,
+          model_name: formData.model_name || 'gpt-4.1-mini',
+          base_url: formData.base_url || 'https://api.openai.com/v1/chat/completions',
+          user_role: formData.user_role || null,
+          user_needs: formData.user_needs || null
+        }
+      });
 
-      const payload = {
-        user_id: user.id,
-        model_name: formData.model_name,
-        base_url: formData.base_url,
-        user_role: formData.user_role,
-        user_needs: formData.user_needs,
-        // Ne mettre à jour api_key que si elle est fournie
-        ...(formData.api_key && { api_key: formData.api_key })
-      };
-
-      if (settings?.id) {
-        // Mise à jour
-        const { error } = await supabase
-          .from("ai_settings")
-          .update(payload)
-          .eq("id", settings.id);
-        
-        if (error) throw error;
-      } else {
-        // Création
-        const { error } = await supabase
-          .from("ai_settings")
-          .insert([payload]);
-        
-        if (error) throw error;
-      }
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai_settings"] });
-      toast({ title: "Paramètres sauvegardés" });
+      toast({ title: "Paramètres sauvegardés de manière sécurisée" });
       setFormData(prev => ({ ...prev, api_key: "" })); // Effacer le champ api_key
     },
     onError: (error) => {

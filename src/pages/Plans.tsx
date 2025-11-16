@@ -193,13 +193,74 @@ export default function Plans() {
       <div className="container mx-auto p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Mes Plans d'Entraînement</h1>
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Créer un Plan
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importer CSV
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Importer un plan depuis CSV</DialogTitle>
+                  <DialogDescription>
+                    Importez un ou plusieurs plans d'entraînement depuis un fichier CSV
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Fichier CSV</Label>
+                    <Input
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => {
+                        setImportFile(e.target.files?.[0] || null);
+                        setImportErrors([]);
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Format: plan_name, exercise_name, order_index, superset_group, target_sets, ...
+                    </p>
+                  </div>
+                  
+                  {importErrors.length > 0 && (
+                    <div className="bg-destructive/10 border border-destructive text-destructive p-3 rounded-md space-y-1">
+                      <p className="font-medium">Erreurs détectées :</p>
+                      {importErrors.map((err, idx) => (
+                        <p key={idx} className="text-sm">• {err}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={handleDownloadTemplate}
+                      className="flex-1"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Télécharger template
+                    </Button>
+                    <Button 
+                      onClick={handleImportCSV} 
+                      className="flex-1"
+                      disabled={!importFile}
+                    >
+                      Importer
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+            
+            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Créer un Plan
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Nouveau Plan</DialogTitle>
@@ -244,6 +305,7 @@ export default function Plans() {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {plans.length === 0 ? (

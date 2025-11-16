@@ -98,7 +98,7 @@ export function exportPlanToCSV(planName: string, exercises: any[]): string {
   const rows = exercises.map(ex => {
     return [
       planName,
-      ex.exercises.name,
+      ex.exercise?.name || 'Unknown',
       ex.order_index,
       ex.superset_group || '',
       ex.target_sets || 3,

@@ -21,6 +21,7 @@ export default function PlanDetail() {
   const queryClient = useQueryClient();
   const [showAddExerciseDialog, setShowAddExerciseDialog] = useState(false);
   const [recurringDays, setRecurringDays] = useState<number[]>([]);
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>("");
   
   // Formulaire ajout exercice
   const [exerciseForm, setExerciseForm] = useState({
@@ -183,6 +184,16 @@ export default function PlanDetail() {
     addExerciseMutation.mutate(exerciseForm);
   };
 
+  // Obtenir la liste des groupes musculaires uniques
+  const muscleGroups = Array.from(
+    new Set(availableExercises.map(ex => ex.muscle_group).filter(Boolean))
+  ).sort();
+
+  // Filtrer les exercices par groupe musculaire sélectionné
+  const filteredExercises = selectedMuscleGroup
+    ? availableExercises.filter(ex => ex.muscle_group === selectedMuscleGroup)
+    : availableExercises;
+
   const handleExportCSV = async () => {
     if (!plan || !planExercises) return;
     const { exportPlanToCSV, downloadCSV } = await import("@/lib/csv-plan-import");
@@ -269,6 +280,29 @@ export default function PlanDetail() {
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
+                  <Label>Groupe musculaire</Label>
+                  <Select
+                    value={selectedMuscleGroup}
+                    onValueChange={(val) => {
+                      setSelectedMuscleGroup(val);
+                      setExerciseForm({ ...exerciseForm, exercise_id: "" });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Tous les groupes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Tous les groupes</SelectItem>
+                      {muscleGroups.map(group => (
+                        <SelectItem key={group} value={group}>
+                          {group}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label>Exercice *</Label>
                   <Select
                     value={exerciseForm.exercise_id}
@@ -285,9 +319,9 @@ export default function PlanDetail() {
                       <SelectValue placeholder="Choisir un exercice" />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableExercises.map(ex => (
+                      {filteredExercises.map(ex => (
                         <SelectItem key={ex.id} value={ex.id.toString()}>
-                          {ex.name} {ex.muscle_group && `(${ex.muscle_group})`}
+                          {ex.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

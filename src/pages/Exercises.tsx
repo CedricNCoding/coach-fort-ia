@@ -167,6 +167,7 @@ export default function Exercises() {
               .update({
                 muscle_group: row.muscle_group,
                 equipment: row.equipment,
+                measurement_type: row.measurement_type,
                 default_rest_seconds: row.default_rest_seconds || 90,
                 notes: row.notes
               })
@@ -181,6 +182,7 @@ export default function Exercises() {
                 name: row.name,
                 muscle_group: row.muscle_group,
                 equipment: row.equipment,
+                measurement_type: row.measurement_type,
                 default_rest_seconds: row.default_rest_seconds || 90,
                 notes: row.notes,
                 is_builtin: 0
@@ -218,6 +220,18 @@ export default function Exercises() {
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Exercices</h1>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                const { exportExercisesToCSV, downloadCSV } = await import("@/lib/csv-import");
+                const csv = exportExercisesToCSV(exercises);
+                downloadCSV(csv, "mes-exercices.csv");
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Exporter CSV
+            </Button>
             <Button
               variant="outline"
               size="sm"

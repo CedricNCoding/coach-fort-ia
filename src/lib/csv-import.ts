@@ -6,6 +6,7 @@ export interface ExerciseCSVRow {
   name: string;
   muscle_group?: string;
   equipment?: string;
+  measurement_type?: string;
   default_rest_seconds?: number;
   notes?: string;
 }
@@ -19,7 +20,7 @@ export interface ImportResult {
 
 /**
  * Parse un fichier CSV d'exercices
- * Format attendu : name,muscle_group,equipment,default_rest_seconds,notes
+ * Format attendu : name,muscle_group,equipment,measurement_type,default_rest_seconds,notes
  */
 export function parseExercisesCSV(csvContent: string): { rows: ExerciseCSVRow[], errors: string[] } {
   const lines = csvContent.trim().split('\n');
@@ -54,13 +55,14 @@ export function parseExercisesCSV(csvContent: string): { rows: ExerciseCSVRow[],
       name: values[0],
       muscle_group: values[1] || undefined,
       equipment: values[2] || undefined,
+      measurement_type: values[3] === 'time' ? 'time' : 'reps',
       default_rest_seconds: undefined,
-      notes: values[4] || undefined
+      notes: values[5] || undefined
     };
 
     // Parser default_rest_seconds si présent
-    if (values[3]) {
-      const restSeconds = parseInt(values[3]);
+    if (values[4]) {
+      const restSeconds = parseInt(values[4]);
       if (!isNaN(restSeconds) && restSeconds > 0) {
         row.default_rest_seconds = restSeconds;
       } else {
@@ -78,12 +80,34 @@ export function parseExercisesCSV(csvContent: string): { rows: ExerciseCSVRow[],
  * Génère un template CSV pour l'import d'exercices
  */
 export function generateCSVTemplate(): string {
-  return `name,muscle_group,equipment,default_rest_seconds,notes
-Squat,Jambes,Barre,180,Roi des exercices de jambes
-Développé couché,Pectoraux,Barre,120,Exercice de base pour les pectoraux
-Soulevé de terre,Dos,Barre,180,Exercice complet du dos et jambes
-Tractions,Dos,Poids du corps,120,Largeur du dos
-Curl barre,Biceps,Barre,60,Isolation biceps`;
+  return `name,muscle_group,equipment,measurement_type,default_rest_seconds,notes
+Squat,Jambes,Barre,reps,180,Roi des exercices de jambes
+Développé couché,Pectoraux,Barre,reps,120,Exercice de base pour les pectoraux
+Planche,Core,Poids du corps,time,60,Gainage complet
+Soulevé de terre,Dos,Barre,reps,180,Exercice complet du dos et jambes
+Tractions,Dos,Poids du corps,reps,120,Largeur du dos`;
+}
+
+/**
+ * Exporte les exercices en CSV
+ */
+export function exportExercisesToCSV(exercises: any[]): string {
+  const header = 'name,muscle_group,equipment,measurement_type,default_rest_seconds,notes\n';
+  
+  const rows = exercises
+    .filter(ex => ex.is_builtin === 0) // Exporter uniquement les exercices personnalisés
+    .map(ex => {
+      return [
+        ex.name,
+        ex.muscle_group || '',
+        ex.equipment || '',
+        ex.measurement_type || 'reps',
+        ex.default_rest_seconds || 90,
+        ex.notes || ''
+      ].join(',');
+    }).join('\n');
+
+  return header + rows;
 }
 
 /**

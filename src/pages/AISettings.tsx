@@ -18,9 +18,7 @@ export default function AISettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
-    api_key: "",
-    model_name: "gpt-4.1-mini",
-    base_url: "https://api.openai.com/v1/chat/completions",
+    model_name: "google/gemini-2.5-flash",
     user_role: "",
     user_needs: ""
   });
@@ -39,9 +37,7 @@ export default function AISettings() {
       
       if (data) {
         setFormData({
-          api_key: "", // Ne pas afficher la clé pour la sécurité
-          model_name: data.model_name || "gpt-4.1-mini",
-          base_url: data.base_url || "https://api.openai.com/v1/chat/completions",
+          model_name: data.model_name || "google/gemini-2.5-flash",
           user_role: data.user_role || "",
           user_needs: data.user_needs || ""
         });
@@ -61,11 +57,8 @@ export default function AISettings() {
       const payload = {
         user_id: user.id,
         model_name: formData.model_name,
-        base_url: formData.base_url,
         user_role: formData.user_role,
-        user_needs: formData.user_needs,
-        // Ne mettre à jour api_key que si elle est fournie
-        ...(formData.api_key && { api_key: formData.api_key })
+        user_needs: formData.user_needs
       };
 
       if (settings?.id) {
@@ -88,7 +81,6 @@ export default function AISettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai_settings"] });
       toast({ title: "Paramètres sauvegardés" });
-      setFormData(prev => ({ ...prev, api_key: "" })); // Effacer le champ api_key
     },
     onError: (error) => {
       toast({ 

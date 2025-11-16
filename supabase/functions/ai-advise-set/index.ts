@@ -22,13 +22,16 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) throw new Error('Non authentifié');
 
+    // Récupérer les paramètres IA (rôle et besoins uniquement)
     const { data: aiSettings } = await supabaseClient
       .from('ai_settings')
-      .select('*')
+      .select('user_role, user_needs, model_name')
       .eq('user_id', user.id)
       .maybeSingle();
 
-    if (!aiSettings || !aiSettings.api_key) {
+    // Utiliser Lovable AI Gateway
+    const apiKey = Deno.env.get('LOVABLE_API_KEY');
+    if (!apiKey) {
       return new Response(
         JSON.stringify({ 
           advice: "Contrôle la descente, pause courte en bas, remonte avec puissance. Vise 7-8/10, difficile mais maîtrisé." 

@@ -266,8 +266,8 @@ RÉPONDS UNIQUEMENT avec le JSON demandé, sans texte avant ou après.`;
           'Authorization': `Bearer ${aiSettings.api_key}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model: aiSettings.model_name,
+      body: JSON.stringify({
+        model: modelName,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }

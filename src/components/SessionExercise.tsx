@@ -225,9 +225,8 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
       {/* Minuteur de repos */}
       {showRestTimer && (
         <RestTimer
-          seconds={targetRestSeconds}
+          targetSeconds={targetRestSeconds}
           onComplete={() => setShowRestTimer(false)}
-          onSkip={() => setShowRestTimer(false)}
         />
       )}
 

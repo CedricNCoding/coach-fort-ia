@@ -50,9 +50,10 @@ All colors MUST be HSL.
 
     --radius: 1rem;
 
-    /* Gradients avec glow violet/magenta */
-    --gradient-primary: radial-gradient(ellipse 80% 80% at 50% -20%, hsl(280 100% 30% / 0.4), transparent 100%), linear-gradient(135deg, hsl(240 10% 6%), hsl(240 10% 8%));
-    --gradient-glow: radial-gradient(circle at 100% 50%, hsl(280 100% 40% / 0.3), transparent 50%), radial-gradient(circle at 0% 50%, hsl(320 100% 50% / 0.2), transparent 50%);
+    /* Gradients doux avec glow violet/magenta */
+    --gradient-primary: radial-gradient(ellipse 120% 100% at 100% 50%, hsl(280 100% 20% / 0.15), transparent 60%), 
+                        radial-gradient(ellipse 120% 100% at 0% 50%, hsl(260 100% 25% / 0.12), transparent 60%),
+                        linear-gradient(180deg, hsl(240 10% 6%), hsl(240 10% 9%));
     --gradient-card: linear-gradient(135deg, hsl(240 10% 12%), hsl(240 8% 14%));
     --gradient-accent: linear-gradient(135deg, hsl(265 100% 65%), hsl(320 100% 65%));
 
@@ -76,19 +77,6 @@ All colors MUST be HSL.
     @apply text-foreground;
     background: var(--gradient-primary);
     min-height: 100vh;
-    position: relative;
-  }
-
-  body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 50%;
-    height: 100%;
-    background: var(--gradient-glow);
-    pointer-events: none;
-    z-index: 0;
   }
 }
 

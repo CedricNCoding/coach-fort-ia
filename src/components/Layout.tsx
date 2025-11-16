@@ -24,9 +24,9 @@ export default function Layout({ children }: LayoutProps) {
   ];
 
   return (
-    <div className="flex flex-col h-screen relative">
+    <div className="flex flex-col h-screen">
       {/* Contenu principal avec scroll */}
-      <main className="flex-1 overflow-y-auto pb-20 relative z-10">
+      <main className="flex-1 overflow-y-auto pb-20">
         {children}
       </main>
 

@@ -130,6 +130,21 @@ export default function PlanDetail() {
     }
   });
 
+  // Mutation mise à jour exercice
+  const updateExerciseMutation = useMutation({
+    mutationFn: async ({ exerciseId, updates }: { exerciseId: number; updates: any }) => {
+      const { error } = await supabase
+        .from("workout_template_exercises")
+        .update(updates)
+        .eq("id", exerciseId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workout_template_exercises", id] });
+    }
+  });
+
   const handleAddExercise = () => {
     if (!exerciseForm.exercise_id) {
       toast({ variant: "destructive", title: "Veuillez sélectionner un exercice" });
@@ -291,21 +306,84 @@ export default function PlanDetail() {
                   )}
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {exercises.map((ex, idx) => (
-                    <div key={ex.id} className="flex items-start gap-4 p-3 rounded-lg bg-muted/30">
-                      <GripVertical className="h-5 w-5 text-muted-foreground mt-1" />
-                      <div className="flex-1 space-y-1">
+                   {exercises.map((ex, idx) => (
+                    <div key={ex.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+                      <GripVertical className="h-5 w-5 text-muted-foreground mt-1 shrink-0" />
+                      <div className="flex-1 space-y-2">
                         <div className="font-medium">{ex.exercise?.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {ex.target_sets} séries × {ex.target_reps_min}-{ex.target_reps_max} reps
-                          {ex.target_weight_kg && ` @ ${ex.target_weight_kg} kg`}
-                          {" • Repos: "}{ex.target_rest_seconds}s
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Séries</Label>
+                            <Input
+                              type="number"
+                              value={ex.target_sets || 3}
+                              onChange={(e) => updateExerciseMutation.mutate({
+                                exerciseId: ex.id,
+                                updates: { target_sets: parseInt(e.target.value) }
+                              })}
+                              className="h-8"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Reps</Label>
+                            <div className="flex gap-1 items-center">
+                              <Input
+                                type="number"
+                                value={ex.target_reps_min || 6}
+                                onChange={(e) => updateExerciseMutation.mutate({
+                                  exerciseId: ex.id,
+                                  updates: { target_reps_min: parseInt(e.target.value) }
+                                })}
+                                className="h-8 w-14"
+                              />
+                              <span className="text-xs">-</span>
+                              <Input
+                                type="number"
+                                value={ex.target_reps_max || 12}
+                                onChange={(e) => updateExerciseMutation.mutate({
+                                  exerciseId: ex.id,
+                                  updates: { target_reps_max: parseInt(e.target.value) }
+                                })}
+                                className="h-8 w-14"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Charge (kg)</Label>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              value={ex.target_weight_kg || 0}
+                              onChange={(e) => updateExerciseMutation.mutate({
+                                exerciseId: ex.id,
+                                updates: { target_weight_kg: parseFloat(e.target.value) || null }
+                              })}
+                              className="h-8"
+                            />
+                            {ex.next_target_weight_kg && (
+                              <div className="text-xs text-primary font-medium">
+                                → {ex.next_target_weight_kg} kg
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Repos (s)</Label>
+                            <Input
+                              type="number"
+                              value={ex.target_rest_seconds || 90}
+                              onChange={(e) => updateExerciseMutation.mutate({
+                                exerciseId: ex.id,
+                                updates: { target_rest_seconds: parseInt(e.target.value) }
+                              })}
+                              className="h-8"
+                            />
+                          </div>
                         </div>
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-destructive"
+                        className="text-destructive shrink-0"
                         onClick={() => deleteExerciseMutation.mutate(ex.id)}
                       >
                         <Trash2 className="h-4 w-4" />

@@ -145,12 +145,21 @@ export default function Session() {
         ? sessionSets.reduce((acc, s) => acc + (s.perceived_difficulty || 0), 0) / sessionSets.length 
         : null;
 
+      // Calculer le tonnage total (poids × reps pour tous les sets hors échauffement)
+      const totalTonnage = sessionSets
+        .filter((s: any) => s.is_warmup === 0)
+        .reduce((sum: number, set: any) => 
+          sum + (parseFloat(set.weight_kg) * parseInt(set.reps)), 
+          0
+        );
+
       const { error: sessionError } = await supabase
         .from("sessions")
         .update({
           status: "completed",
           finished_at: new Date().toISOString(),
-          avg_difficulty: avgDifficulty
+          avg_difficulty: avgDifficulty,
+          total_tonnage: totalTonnage
         })
         .eq("id", currentSession.id);
 

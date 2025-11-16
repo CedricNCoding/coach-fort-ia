@@ -203,7 +203,9 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
         </div>
         <div className="p-2 bg-muted rounded">
           <p className="text-muted-foreground">Charge</p>
-          <p className="font-bold">{targetWeight.toFixed(1)} kg</p>
+          <p className="font-bold">
+            {targetWeight > 0 ? `${targetWeight.toFixed(1)} kg` : "Non définie"}
+          </p>
         </div>
         <div className="p-2 bg-muted rounded">
           <p className="text-muted-foreground">Repos</p>

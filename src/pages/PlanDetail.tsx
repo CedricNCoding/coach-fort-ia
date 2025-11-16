@@ -376,7 +376,8 @@ export default function PlanDetail() {
                             <Input
                               type="number"
                               step="0.5"
-                              value={ex.target_weight_kg || 0}
+                              value={ex.target_weight_kg || ""}
+                              placeholder="Ex: 20"
                               onChange={(e) => updateExerciseMutation.mutate({
                                 exerciseId: ex.id,
                                 updates: { target_weight_kg: parseFloat(e.target.value) || null }

@@ -31,6 +31,7 @@ export default function PlanDetail() {
     target_reps_min: 6,
     target_reps_max: 12,
     target_weight_kg: 0,
+    target_time_seconds: 0,
     target_rest_seconds: 90,
     superset_rest_seconds: 120
   });
@@ -107,6 +108,7 @@ export default function PlanDetail() {
           target_reps_min: data.target_reps_min,
           target_reps_max: data.target_reps_max,
           target_weight_kg: data.target_weight_kg || null,
+          target_time_seconds: data.target_time_seconds || null,
           target_rest_seconds: data.target_rest_seconds,
           superset_rest_seconds: data.superset_rest_seconds
         }]);
@@ -124,6 +126,7 @@ export default function PlanDetail() {
         target_reps_min: 6,
         target_reps_max: 12,
         target_weight_kg: 0,
+        target_time_seconds: 0,
         target_rest_seconds: 90,
         superset_rest_seconds: 120
       });
@@ -349,24 +352,39 @@ export default function PlanDetail() {
                       onChange={(e) => setExerciseForm({ ...exerciseForm, target_sets: parseInt(e.target.value) || 3 })}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Rep range</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={exerciseForm.target_reps_min}
-                        onChange={(e) => setExerciseForm({ ...exerciseForm, target_reps_min: parseInt(e.target.value) || 6 })}
-                        placeholder="Min"
-                      />
-                      <span>-</span>
-                      <Input
-                        type="number"
-                        value={exerciseForm.target_reps_max}
-                        onChange={(e) => setExerciseForm({ ...exerciseForm, target_reps_max: parseInt(e.target.value) || 12 })}
-                        placeholder="Max"
-                      />
-                    </div>
-                  </div>
+                  {(() => {
+                    const selectedExercise = availableExercises.find(ex => ex.id.toString() === exerciseForm.exercise_id);
+                    return selectedExercise?.measurement_type === 'time' ? (
+                      <div className="space-y-2">
+                        <Label>Temps cible (secondes)</Label>
+                        <Input
+                          type="number"
+                          value={exerciseForm.target_time_seconds}
+                          onChange={(e) => setExerciseForm({ ...exerciseForm, target_time_seconds: parseInt(e.target.value) || 0 })}
+                          placeholder="Ex: 60"
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label>Rep range</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            value={exerciseForm.target_reps_min}
+                            onChange={(e) => setExerciseForm({ ...exerciseForm, target_reps_min: parseInt(e.target.value) || 6 })}
+                            placeholder="Min"
+                          />
+                          <span>-</span>
+                          <Input
+                            type="number"
+                            value={exerciseForm.target_reps_max}
+                            onChange={(e) => setExerciseForm({ ...exerciseForm, target_reps_max: parseInt(e.target.value) || 12 })}
+                            placeholder="Max"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -503,30 +521,46 @@ export default function PlanDetail() {
                               className="h-8"
                             />
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Reps</Label>
-                            <div className="flex gap-1 items-center">
+                          {ex.exercise?.measurement_type === 'time' ? (
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Temps (s)</Label>
                               <Input
                                 type="number"
-                                value={ex.target_reps_min || 6}
+                                value={ex.target_time_seconds || ""}
+                                placeholder="Ex: 60"
                                 onChange={(e) => updateExerciseMutation.mutate({
                                   exerciseId: ex.id,
-                                  updates: { target_reps_min: parseInt(e.target.value) }
+                                  updates: { target_time_seconds: parseInt(e.target.value) || null }
                                 })}
-                                className="h-8 w-14"
-                              />
-                              <span className="text-xs">-</span>
-                              <Input
-                                type="number"
-                                value={ex.target_reps_max || 12}
-                                onChange={(e) => updateExerciseMutation.mutate({
-                                  exerciseId: ex.id,
-                                  updates: { target_reps_max: parseInt(e.target.value) }
-                                })}
-                                className="h-8 w-14"
+                                className="h-8"
                               />
                             </div>
-                          </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Reps</Label>
+                              <div className="flex gap-1 items-center">
+                                <Input
+                                  type="number"
+                                  value={ex.target_reps_min || 6}
+                                  onChange={(e) => updateExerciseMutation.mutate({
+                                    exerciseId: ex.id,
+                                    updates: { target_reps_min: parseInt(e.target.value) }
+                                  })}
+                                  className="h-8 w-14"
+                                />
+                                <span className="text-xs">-</span>
+                                <Input
+                                  type="number"
+                                  value={ex.target_reps_max || 12}
+                                  onChange={(e) => updateExerciseMutation.mutate({
+                                    exerciseId: ex.id,
+                                    updates: { target_reps_max: parseInt(e.target.value) }
+                                  })}
+                                  className="h-8 w-14"
+                                />
+                              </div>
+                            </div>
+                          )}
                           <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">Charge (kg)</Label>
                             <Input

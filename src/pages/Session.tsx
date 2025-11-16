@@ -21,6 +21,9 @@ export default function Session() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [currentSupersetIndex, setCurrentSupersetIndex] = useState(0);
+  const [currentExerciseIndexInSuperset, setCurrentExerciseIndexInSuperset] = useState(0);
+  const [currentSetNumber, setCurrentSetNumber] = useState(1);
+  const [showRestTimer, setShowRestTimer] = useState(false);
   const [aiAdvice, setAiAdvice] = useState<string | null>(null);
   const [isLoadingAdvice, setIsLoadingAdvice] = useState(false);
 

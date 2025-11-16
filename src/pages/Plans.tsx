@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, GripVertical, X } from "lucide-react";
+import { Plus, Pencil, Trash2, GripVertical, X, Download, Upload } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export default function Plans() {
@@ -18,8 +18,11 @@ export default function Plans() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<number | null>(null);
   const [formData, setFormData] = useState({ name: "", goal: "", notes: "" });
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
 
   // Charger les plans
   const { data: plans = [] } = useQuery({
@@ -77,6 +80,112 @@ export default function Plans() {
       return;
     }
     createPlanMutation.mutate(formData);
+  };
+
+  const handleImportCSV = async () => {
+    if (!importFile) {
+      toast({ variant: "destructive", title: "Veuillez sélectionner un fichier" });
+      return;
+    }
+
+    try {
+      const content = await importFile.text();
+      const { parsePlanCSV } = await import("@/lib/csv-plan-import");
+      const { rows, errors } = parsePlanCSV(content);
+      
+      if (errors.length > 0) {
+        setImportErrors(errors);
+        return;
+      }
+
+      // Grouper par plan_name
+      const planGroups: { [key: string]: typeof rows } = {};
+      rows.forEach(row => {
+        if (!planGroups[row.plan_name]) planGroups[row.plan_name] = [];
+        planGroups[row.plan_name].push(row);
+      });
+
+      // Pour chaque plan, créer ou mettre à jour
+      for (const planName of Object.keys(planGroups)) {
+        const planRows = planGroups[planName];
+        
+        // Créer le plan
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: newPlan, error: planError } = await supabase
+          .from("workout_templates")
+          .insert([{ name: planName, user_id: user?.id }])
+          .select()
+          .single();
+          
+        if (planError || !newPlan) {
+          console.error("Error creating plan:", planError);
+          continue;
+        }
+
+        // Pour chaque exercice, vérifier s'il existe ou le créer
+        for (const row of planRows) {
+          // Chercher l'exercice
+          const { data: exercises } = await supabase
+            .from("exercises")
+            .select("id")
+            .eq("name", row.exercise_name)
+            .limit(1);
+            
+          let exerciseId = exercises?.[0]?.id;
+          
+          if (!exerciseId) {
+            // Créer l'exercice
+            const { data: newEx, error: exError } = await supabase
+              .from("exercises")
+              .insert([{ 
+                name: row.exercise_name, 
+                user_id: user?.id,
+                is_builtin: 0
+              }])
+              .select()
+              .single();
+              
+            if (exError || !newEx) {
+              console.error("Error creating exercise:", exError);
+              continue;
+            }
+            exerciseId = newEx.id;
+          }
+
+          // Ajouter l'exercice au plan
+          await supabase
+            .from("workout_template_exercises")
+            .insert([{
+              workout_template_id: newPlan.id,
+              exercise_id: exerciseId,
+              order_index: row.order_index,
+              superset_group: row.superset_group,
+              target_sets: row.target_sets,
+              target_reps_min: row.target_reps_min,
+              target_reps_max: row.target_reps_max,
+              target_weight_kg: row.target_weight_kg,
+              target_rest_seconds: row.target_rest_seconds,
+              superset_rest_seconds: row.superset_rest_seconds,
+              target_difficulty_note: row.target_difficulty_note
+            }]);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["workout_templates"] });
+      toast({ title: "Import réussi !", description: `${Object.keys(planGroups).length} plan(s) importé(s)` });
+      setShowImportDialog(false);
+      setImportFile(null);
+      setImportErrors([]);
+    } catch (error) {
+      console.error("Import error:", error);
+      toast({ variant: "destructive", title: "Erreur lors de l'import" });
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    const { generatePlanCSVTemplate, downloadCSV } = await import("@/lib/csv-plan-import");
+    const template = generatePlanCSVTemplate();
+    downloadCSV(template, "template_plan.csv");
   };
 
   return (

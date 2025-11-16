@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { Clock, Play, Trash2 } from "lucide-react";
+import { Clock, Play, CheckCircle } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
@@ -18,7 +18,7 @@ export default function Session() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [currentSupersetIndex, setCurrentSupersetIndex] = useState(0);
   const [currentExerciseIndexInSuperset, setCurrentExerciseIndexInSuperset] = useState(0);
   const [currentSetNumber, setCurrentSetNumber] = useState(1);
@@ -136,9 +136,9 @@ export default function Session() {
     }
   });
 
-  // Mutation pour terminer une session
+  // Mutation pour terminer une session (même si incomplète)
   const finishSessionMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (forceComplete: boolean = false) => {
       if (!currentSession?.id) throw new Error("No session");
 
       const avgDifficulty = sessionSets.length > 0 
@@ -180,6 +180,7 @@ export default function Session() {
     onSuccess: (sessionId) => {
       queryClient.invalidateQueries({ queryKey: ["current_session"] });
       queryClient.invalidateQueries({ queryKey: ["today_workouts"] });
+      setShowCompleteDialog(false);
       navigate(`/session-summary/${sessionId}`);
     },
     onError: (error) => {
@@ -192,36 +193,6 @@ export default function Session() {
     }
   });
 
-  // Mutation pour supprimer une session
-  const deleteSessionMutation = useMutation({
-    mutationFn: async () => {
-      if (!currentSession?.id) throw new Error("No session");
-      
-      const { error: setsError } = await supabase
-        .from("session_sets")
-        .delete()
-        .eq("session_id", currentSession.id);
-      if (setsError) throw setsError;
-
-      const { error: sessionError } = await supabase
-        .from("sessions")
-        .delete()
-        .eq("id", currentSession.id);
-      if (sessionError) throw sessionError;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["current_session"] });
-      queryClient.invalidateQueries({ queryKey: ["today_workouts"] });
-      toast({ title: "Séance supprimée" });
-      setShowDeleteDialog(false);
-    },
-    onError: () => {
-      toast({
-        variant: "destructive",
-        title: "Erreur lors de la suppression"
-      });
-    }
-  });
 
   // Formater le temps écoulé
   const formatElapsedTime = (seconds: number) => {
@@ -302,6 +273,12 @@ export default function Session() {
         setCurrentSupersetIndex(prev => prev + 1);
         setCurrentExerciseIndexInSuperset(0);
         setCurrentSetNumber(1);
+        // Démarrer le timer avec le temps du superset SUIVANT
+        const nextSuperset = supersetKeys[currentSupersetIndex + 1];
+        const nextSupersetExercises = supersets[nextSuperset];
+        if (nextSupersetExercises && nextSupersetExercises[0]?.superset_rest_seconds) {
+          setShowRestTimer(true);
+        }
       }
       // Sinon, areAllSupersetsComplete sera true et affichera le bouton de fin
     }
@@ -382,20 +359,12 @@ export default function Session() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <CardTitle className="text-2xl">
-                    {currentSession.planned_workouts?.workout_templates?.name || "Séance"}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Démarrée {formatDistanceToNow(new Date(currentSession.started_at), { 
-                      addSuffix: true,
-                      locale: fr 
-                    })}
-                  </p>
-                </div>
+                <CardTitle className="text-2xl">
+                  {currentSession.planned_workouts?.workout_templates?.name || "Séance"}
+                </CardTitle>
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <Clock className="h-5 w-5" />
-                  <span className="text-2xl font-mono">{formatElapsedTime(elapsedTime)}</span>
+                  <Clock className="h-4 w-4" />
+                  <span className="text-lg font-mono">{formatElapsedTime(elapsedTime)}</span>
                 </div>
               </div>
             </CardHeader>
@@ -427,7 +396,7 @@ export default function Session() {
                   Félicitations ! Vous avez terminé tous les exercices.
                 </p>
                 <Button
-                  onClick={() => finishSessionMutation.mutate()}
+                  onClick={() => finishSessionMutation.mutate(false)}
                   disabled={finishSessionMutation.isPending}
                   className="w-full"
                   size="lg"
@@ -441,13 +410,21 @@ export default function Session() {
               <CardHeader>
                 <CardTitle className="text-center">Repos inter-superset</CardTitle>
                 <p className="text-center text-sm text-muted-foreground">
-                  Série {currentSetNumber} terminée • Préparez-vous pour la série {currentSetNumber + 1}
+                  {currentSetNumber < (currentSupersetExercises[0]?.target_sets || 3)
+                    ? `Série ${currentSetNumber} terminée • Préparez-vous pour la série ${currentSetNumber + 1}`
+                    : `Superset terminé • Prochain superset dans`}
                 </p>
               </CardHeader>
               <CardContent>
                 <RestTimer
                   autoStart
-                  targetSeconds={currentSupersetExercises[0]?.superset_rest_seconds || 90}
+                  targetSeconds={
+                    currentSetNumber < (currentSupersetExercises[0]?.target_sets || 3)
+                      ? currentSupersetExercises[0]?.superset_rest_seconds || 90
+                      : currentSupersetIndex < supersetKeys.length - 1
+                        ? supersets[supersetKeys[currentSupersetIndex + 1]][0]?.superset_rest_seconds || 90
+                        : 90
+                  }
                   onComplete={handleRestComplete}
                   onCancel={handleRestComplete}
                 />
@@ -466,32 +443,33 @@ export default function Session() {
 
           {!areAllSupersetsComplete && (
             <Button
-              variant="destructive"
-              onClick={() => setShowDeleteDialog(true)}
+              variant="outline"
+              onClick={() => setShowCompleteDialog(true)}
               className="w-full"
             >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Supprimer la séance
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Compléter la séance
             </Button>
           )}
         </div>
       </div>
 
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <AlertDialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer cette séance ?</AlertDialogTitle>
+            <AlertDialogTitle>Compléter cette séance ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette action est irréversible. Toutes les données de cette séance seront perdues.
+              Vous n'avez pas terminé tous les exercices. Voulez-vous vraiment marquer cette séance comme complète ? 
+              Les exercices non effectués seront enregistrés sans séries.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>Continuer la séance</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteSessionMutation.mutate()}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => finishSessionMutation.mutate(true)}
+              disabled={finishSessionMutation.isPending}
             >
-              Supprimer
+              Compléter la séance
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

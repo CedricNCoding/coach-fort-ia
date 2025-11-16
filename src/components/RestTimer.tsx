@@ -6,29 +6,38 @@ import { Clock, X } from "lucide-react";
 interface RestTimerProps {
   targetSeconds: number;
   onComplete: () => void;
+  autoStart?: boolean;
+  onCancel?: () => void;
 }
 
-export default function RestTimer({ targetSeconds, onComplete }: RestTimerProps) {
+export default function RestTimer({ targetSeconds, onComplete, autoStart = false, onCancel }: RestTimerProps) {
   const [timeLeft, setTimeLeft] = useState(targetSeconds);
   const [isPaused, setIsPaused] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(autoStart);
 
-  useEffect(() => {
-    if (isPaused || timeLeft <= 0 || !isVisible) return;
+useEffect(() => {
+  // Reset quand la durée change et auto-démarrer si demandé
+  setTimeLeft(targetSeconds);
+  setIsPaused(false);
+  setIsVisible(autoStart);
+}, [targetSeconds, autoStart]);
 
-    const interval = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          onComplete();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+useEffect(() => {
+  if (isPaused || timeLeft <= 0 || !isVisible) return;
 
-    return () => clearInterval(interval);
-  }, [timeLeft, isPaused, onComplete, isVisible]);
+  const interval = setInterval(() => {
+    setTimeLeft(prev => {
+      if (prev <= 1) {
+        clearInterval(interval);
+        onComplete();
+        return 0;
+      }
+      return prev - 1;
+    });
+  }, 1000);
+
+  return () => clearInterval(interval);
+}, [timeLeft, isPaused, onComplete, isVisible]);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -59,7 +68,7 @@ export default function RestTimer({ targetSeconds, onComplete }: RestTimerProps)
             <Clock className="h-5 w-5 text-accent-foreground" />
             <span className="font-semibold">Repos en cours</span>
           </div>
-          <Button onClick={() => setIsVisible(false)} variant="ghost" size="icon">
+          <Button onClick={() => { onCancel ? onCancel() : setIsVisible(false); }} variant="ghost" size="icon">
             <X className="h-4 w-4" />
           </Button>
         </div>

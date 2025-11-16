@@ -440,8 +440,10 @@ export default function Session() {
             <Card>
               <CardContent className="pt-6">
                 <RestTimer
+                  autoStart
                   targetSeconds={currentSupersetExercises[0]?.superset_rest_seconds || currentSupersetExercises[0]?.target_rest_seconds || 90}
                   onComplete={handleRestComplete}
+                  onCancel={handleRestComplete}
                 />
               </CardContent>
             </Card>

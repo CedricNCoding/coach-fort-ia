@@ -7,12 +7,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, TrendingDown } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 
 export default function Calendar() {
   const { toast } = useToast();
@@ -43,6 +45,36 @@ export default function Calendar() {
       
       if (error) throw error;
       return data;
+    }
+  });
+
+  // Vérifier si la semaine est en décharge (au moins une séance en décharge)
+  const isWeekDeload = plannedWorkouts.some(w => w.is_deload);
+
+  // Mutation pour basculer le mode décharge pour toute la semaine
+  const toggleWeekDeloadMutation = useMutation({
+    mutationFn: async (enableDeload: boolean) => {
+      const workoutIds = plannedWorkouts.map(w => w.id);
+      if (workoutIds.length === 0) return;
+
+      const { error } = await supabase
+        .from("planned_workouts")
+        .update({ 
+          is_deload: enableDeload,
+          deload_factor: enableDeload ? 0.75 : null
+        })
+        .in("id", workoutIds);
+      
+      if (error) throw error;
+    },
+    onSuccess: (_, enableDeload) => {
+      queryClient.invalidateQueries({ queryKey: ["planned_workouts"] });
+      toast({ 
+        title: enableDeload ? "Semaine de décharge activée" : "Semaine de décharge désactivée",
+        description: enableDeload 
+          ? "Le volume et les charges seront réduits de 25% pour cette semaine"
+          : "La progression normale reprendra"
+      });
     }
   });
 
@@ -130,20 +162,49 @@ export default function Calendar() {
   return (
     <Layout>
       <div className="container mx-auto p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Calendrier</h1>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="text-lg font-medium min-w-[280px] text-center">
-              Semaine du {format(weekStart, "d", { locale: fr })} au {format(weekEnd, "d MMMM yyyy", { locale: fr })}
-            </div>
-            <Button variant="outline" size="icon" onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <h2 className="text-xl font-semibold">
+            Semaine du {format(weekStart, "d MMM", { locale: fr })} au {format(weekEnd, "d MMM yyyy", { locale: fr })}
+          </h2>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          {isWeekDeload && (
+            <Badge variant="secondary" className="ml-2">
+              <TrendingDown className="h-3 w-3 mr-1" />
+              Décharge
+            </Badge>
+          )}
         </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="deload-toggle"
+              checked={isWeekDeload}
+              onCheckedChange={(checked) => toggleWeekDeloadMutation.mutate(checked)}
+              disabled={plannedWorkouts.length === 0}
+            />
+            <label htmlFor="deload-toggle" className="text-sm font-medium cursor-pointer">
+              Semaine de décharge
+            </label>
+          </div>
+          <Button onClick={() => setCurrentWeek(new Date())}>
+            Aujourd'hui
+          </Button>
+        </div>
+      </div>
 
         {/* Calendrier */}
         <Card>

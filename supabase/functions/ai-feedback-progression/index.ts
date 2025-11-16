@@ -8,8 +8,11 @@ const corsHeaders = {
 
 /**
  * Calcule la progression déterministe (fallback)
+ * @param sets - Séries réalisées
+ * @param templateExercise - Exercice du template
+ * @param isDeload - Si true, pas d'augmentation autorisée
  */
-function calculateDeterministicProgression(sets: any[], templateExercise: any) {
+function calculateDeterministicProgression(sets: any[], templateExercise: any, isDeload: boolean = false) {
   const workSets = sets.filter(s => s.is_warmup === 0);
   
   if (workSets.length === 0) {
@@ -38,12 +41,38 @@ function calculateDeterministicProgression(sets: any[], templateExercise: any) {
 
   const avgDifficulty = workSets.reduce((sum, set) => sum + (set.perceived_difficulty || 7), 0) / workSets.length;
   const hasPain = workSets.some(set => set.pain === 1);
-  const highDifficulty = workSets.filter(set => (set.perceived_difficulty || 0) >= 9).length >= 2;
+  const painCount = workSets.filter(set => set.pain === 1).length;
 
   let new_weight = weight_best;
   let new_sets = current_sets;
   let reason = "";
   let difficulty_note = "Vise 7-8/10, difficile mais contrôlé";
+
+  // SEMAINE DE DÉCHARGE: Pas d'augmentation
+  if (isDeload) {
+    difficulty_note = "Semaine de décharge - Aucune progression appliquée";
+    reason = "Semaine de décharge active - maintien des charges pour favoriser la récupération";
+    
+    if (avgDifficulty > 8.5 || painCount > 0) {
+      new_weight = Math.max(0, weight_best * 0.95);
+      new_weight = Math.round(new_weight * 2) / 2;
+      difficulty_note = "Semaine de décharge - Légère réduction car encore difficile";
+      reason = "Semaine de décharge - réduction car difficulté/douleur élevée";
+    }
+    
+    return {
+      next_target_sets: new_sets,
+      next_target_reps_min: target_reps_min,
+      next_target_reps_max: target_reps_max,
+      next_target_weight_kg: new_weight,
+      next_target_difficulty_note: difficulty_note,
+      reason,
+      source: "deterministic_deload"
+    };
+  }
+
+  // Progression normale (pas en décharge)
+  const highDifficulty = workSets.filter(set => (set.perceived_difficulty || 0) >= 9).length >= 2;
 
   if (hasPain || highDifficulty) {
     new_weight = weight_best * 0.95;
@@ -151,9 +180,11 @@ serve(async (req) => {
     if (aiSettingsError || !aiSettings || !aiSettings.api_key) {
       console.log('Pas de paramètres IA, utilisation des règles déterministes');
       
+      const isDeload = session.planned_workouts?.is_deload || false;
+      
       const exercises = templateExercises.map((te: any) => {
         const sets = sessionSets.filter((s: any) => s.template_exercise_id === te.id);
-        const progression = calculateDeterministicProgression(sets, te);
+        const progression = calculateDeterministicProgression(sets, te, isDeload);
         
         return {
           template_exercise_id: te.id,
@@ -161,13 +192,21 @@ serve(async (req) => {
         };
       });
 
-      return new Response(
-        JSON.stringify({
-          feedback_bullets: [
+      const feedbackBullets = isDeload
+        ? [
+            "Semaine de décharge - Séance complétée !",
+            "Aucune progression appliquée pour favoriser la récupération.",
+            "La semaine prochaine, tu pourras reprendre la progression normale."
+          ]
+        : [
             "Séance complétée avec succès !",
             "Les cibles ont été ajustées selon les règles de progression déterministe.",
             "Continue à progresser de façon régulière et sécurisée."
-          ],
+          ];
+
+      return new Response(
+        JSON.stringify({
+          feedback_bullets: feedbackBullets,
           exercises
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -225,14 +264,14 @@ ${aiSettings.user_needs ? `Besoins spécifiques : ${aiSettings.user_needs}` : ''
 - 9/10 : quasi échec, 0 rep en réserve
 - 10/10 : échec complet
 
-ANALYSE COMPLÈTE REQUISE :
-- Examine chaque set individuellement avec sa difficulté perçue
-- Prends en compte les notes de douleur (pain_notes) pour adapter la progression
-- Analyse les temps de repos réels vs ciblés
-- Considère l'évolution de la fatigue sur l'ensemble de la séance
-
+${session.planned_workouts?.is_deload ? `
+⚠️ SEMAINE DE DÉCHARGE ACTIVE ⚠️
+Cette séance fait partie d'une semaine de décharge (deload). Le but est de réduire la fatigue accumulée.
+RÈGLE ABSOLUE : Tu ne dois JAMAIS proposer d'augmentation de charge ou de volume.
+Tu peux seulement MAINTENIR ou RÉDUIRE si la difficulté est encore trop élevée ou s'il y a de la douleur.
+` : `
 Règles de progression (OBLIGATOIRES) :
-1. Si douleur (pain = 1) avec notes détaillées : RÉDUIRE de -5% la charge, adapter le volume, proposer des alternatives si nécessaire
+1. Si douleur (pain = 1) avec notes détaillées : RÉDUIRE de -5% la charge, adapter le volume
 2. Si plusieurs sets avec difficulté ≥ 9 : RÉDUIRE de -5% la charge et possiblement -1 set
 3. Si meilleur set >= rep max du rep range ET difficulté ≤ 8 : AUGMENTER de +2.5% (max +5%)
 4. Si meilleur set dans le rep range ET difficulté correcte (7-8) : MAINTENIR la charge
@@ -243,6 +282,7 @@ Limites de sécurité ABSOLUES :
 - Max +5% de charge par séance
 - Max -5% de charge par séance
 - Max +1 set par séance
+`}
 
 Tu dois répondre STRICTEMENT en JSON avec cette structure exacte :
 {
@@ -265,6 +305,7 @@ Tu dois répondre STRICTEMENT en JSON avec cette structure exacte :
 
 Contexte global :
 - Objectif du plan : ${session.planned_workouts?.workout_templates?.goal || 'non défini'}
+${session.planned_workouts?.is_deload ? '- ⚠️ SEMAINE DE DÉCHARGE (pas d\'augmentation autorisée)' : ''}
 - Durée : ${duration} minutes
 - Tonnage total : ${totalTonnage.toFixed(0)} kg
 - Difficulté moyenne : ${avgDifficulty.toFixed(1)}/10

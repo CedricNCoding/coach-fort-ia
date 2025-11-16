@@ -22,19 +22,28 @@ interface ProgressionResult {
   next_target_reps_min: number;
   next_target_reps_max: number;
   next_target_weight_kg: number;
-  next_target_difficulty_note: string;
-  reason: string;
+  difficulty_note: string;
 }
 
 /**
- * Calcule la progression déterministe pour un exercice
- * @param sets - Tous les sets de travail (is_warmup = 0) de la dernière séance pour cet exercice
- * @param templateExercise - Configuration actuelle de l'exercice dans le plan
- * @returns Recommandations de progression
+ * Calculer la progression déterministe pour un exercice
+ * 
+ * Règles basées sur :
+ * - Rep range cible (target_reps_min, target_reps_max)
+ * - Performance du meilleur set (reps, poids)
+ * - Difficulté perçue moyenne
+ * - Présence de douleur
+ * - Semaine de décharge (pas d'augmentation)
+ * 
+ * @param sets - Les sets réalisés pendant la séance
+ * @param templateExercise - L'exercice template avec les cibles actuelles
+ * @param isDeload - Si true, empêche toute augmentation de charge/volume
+ * @returns Recommandations de progression pour la prochaine séance
  */
 export function calculateDeterministicProgression(
   sets: SessionSet[],
-  templateExercise: TemplateExercise
+  templateExercise: TemplateExercise,
+  isDeload: boolean = false
 ): ProgressionResult {
   // Filtrer uniquement les séries de travail (pas d'échauffement)
   const workSets = sets.filter(set => set.is_warmup === 0);
@@ -46,8 +55,7 @@ export function calculateDeterministicProgression(
       next_target_reps_min: templateExercise.target_reps_min || 6,
       next_target_reps_max: templateExercise.target_reps_max || 12,
       next_target_weight_kg: Number(templateExercise.target_weight_kg) || 0,
-      next_target_difficulty_note: "Cibles maintenues",
-      reason: "Aucune série de travail détectée"
+      difficulty_note: "Cibles maintenues"
     };
   }
 
@@ -65,16 +73,46 @@ export function calculateDeterministicProgression(
   const target_reps_max = templateExercise.target_reps_max || 12;
   const current_sets = templateExercise.target_sets || 3;
 
-  // Calculer la difficulté moyenne et vérifier les douleurs
+  // Calcul des statistiques et nombres basés sur la performance
   const avgDifficulty = workSets.reduce((sum, set) => sum + (set.perceived_difficulty || 7), 0) / workSets.length;
+  const painCount = workSets.filter(set => set.pain === 1).length;
+
+  // Recommandations par défaut
+  let nextTargetSets = templateExercise.target_sets || 3;
+  let nextTargetRepsMin = templateExercise.target_reps_min || 6;
+  let nextTargetRepsMax = templateExercise.target_reps_max || 12;
+  let nextTargetWeight = Number(templateExercise.target_weight_kg || 0);
+  let difficultyNote = "";
+
+  // *** SEMAINE DE DÉCHARGE : Pas d'augmentation ***
+  if (isDeload) {
+    difficultyNote = "Semaine de décharge - Aucune progression appliquée pour favoriser la récupération.";
+    
+    // En décharge, on peut seulement maintenir ou réduire si trop difficile/douleur
+    if (avgDifficulty > 8.5 || painCount > 0) {
+      // Réduire légèrement si encore trop difficile
+      nextTargetWeight = Math.max(0, nextTargetWeight * 0.95);
+      nextTargetWeight = Math.round(nextTargetWeight * 2) / 2; // Arrondir à 0.5
+      difficultyNote = "Semaine de décharge - Légère réduction de charge car la séance était encore difficile.";
+    }
+    
+    return {
+      next_target_sets: nextTargetSets,
+      next_target_reps_min: nextTargetRepsMin,
+      next_target_reps_max: nextTargetRepsMax,
+      next_target_weight_kg: nextTargetWeight,
+      difficulty_note: difficultyNote
+    };
+  }
+
+  // *** PROGRESSION NORMALE (pas en décharge) ***
   const hasPain = workSets.some(set => set.pain === 1);
   const highDifficulty = workSets.filter(set => (set.perceived_difficulty || 0) >= 9).length >= 2;
 
   // Initialiser les nouvelles cibles
   let new_weight = weight_best;
   let new_sets = current_sets;
-  let reason = "";
-  let difficulty_note = "Vise 7-8/10, difficile mais contrôlé";
+  difficultyNote = "Vise 7-8/10, difficile mais contrôlé";
 
   // Règle 1 : Si douleur ou difficulté excessive → réduire
   if (hasPain || highDifficulty) {
@@ -82,10 +120,7 @@ export function calculateDeterministicProgression(
     if (highDifficulty) {
       new_sets = Math.max(2, current_sets - 1);
     }
-    reason = hasPain 
-      ? "Réduction de charge et/ou volume en raison de douleur signalée"
-      : "Réduction de charge et volume en raison de difficulté excessive (plusieurs sets ≥9/10)";
-    difficulty_note = "Vise 6-7/10, focus sur la technique";
+    difficultyNote = "Vise 6-7/10, focus sur la technique";
   }
   // Règle 2 : Reps atteint ou dépassé le maximum → augmenter la charge
   else if (reps_best >= target_reps_max) {
@@ -93,20 +128,17 @@ export function calculateDeterministicProgression(
     // Limiter à +5% max
     const maxIncrease = weight_best * 1.05;
     new_weight = Math.min(new_weight, maxIncrease);
-    reason = `Reps maximum atteint (${reps_best}/${target_reps_max}), augmentation de charge de +2.5%`;
-    difficulty_note = "Vise 7-8/10 avec la nouvelle charge, 1-2 reps en réserve";
+    difficultyNote = "Vise 7-8/10 avec la nouvelle charge, 1-2 reps en réserve";
   }
   // Règle 3 : Reps dans le rep range → maintenir
   else if (reps_best >= target_reps_min && reps_best < target_reps_max) {
     new_weight = weight_best;
-    reason = `Reps dans le rep range cible (${reps_best} entre ${target_reps_min} et ${target_reps_max}), charge maintenue`;
-    difficulty_note = "Vise 7-8/10, pousse vers le haut du rep range";
+    difficultyNote = "Vise 7-8/10, pousse vers le haut du rep range";
   }
   // Règle 4 : Reps en dessous du minimum → réduire la charge
   else {
     new_weight = weight_best * 0.95; // -5%
-    reason = `Reps insuffisantes (${reps_best} < ${target_reps_min}), réduction de charge de -5%`;
-    difficulty_note = "Vise 7/10, focus sur l'atteinte du rep range";
+    difficultyNote = "Vise 7/10, focus sur l'atteinte du rep range";
   }
 
   // Arrondir la charge à 0.5 kg près
@@ -117,8 +149,7 @@ export function calculateDeterministicProgression(
     next_target_reps_min: target_reps_min,
     next_target_reps_max: target_reps_max,
     next_target_weight_kg: new_weight,
-    next_target_difficulty_note: difficulty_note,
-    reason
+    difficulty_note: difficultyNote
   };
 }
 

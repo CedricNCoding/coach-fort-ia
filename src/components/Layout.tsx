@@ -16,10 +16,10 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { path: "/calendrier", icon: Calendar, label: "Calendrier" },
-    { path: "/seance", icon: Dumbbell, label: "Séance" },
+    { path: "/session", icon: Dumbbell, label: "Séance" },
     { path: "/plans", icon: ClipboardList, label: "Plans" },
     { path: "/exercices", icon: BookOpen, label: "Exercices" },
-    { path: "/reglages", icon: Settings, label: "Réglages" },
+    { path: "/reglages-ia", icon: Settings, label: "IA" },
   ];
 
   return (

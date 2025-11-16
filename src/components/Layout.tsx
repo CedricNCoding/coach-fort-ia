@@ -30,8 +30,8 @@ export default function Layout({ children }: LayoutProps) {
       </main>
 
       {/* Navigation en bas */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border overflow-x-auto">
-        <div className="flex items-center h-14 px-1 justify-around max-w-screen-xl mx-auto">
+      <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border overflow-x-auto pb-[env(safe-area-inset-bottom)]">
+        <div className="flex items-center h-12 min-w-max px-1 md:justify-around md:max-w-screen-xl md:mx-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -41,7 +41,7 @@ export default function Layout({ children }: LayoutProps) {
                 key={item.path}
                 onClick={() => navigate(item.path)}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 px-1.5 py-1.5 rounded-lg transition-colors flex-1 min-w-0",
+                  "flex flex-col items-center justify-center gap-0.5 px-1.5 py-1.5 rounded-lg transition-colors min-w-[64px] flex-shrink-0",
                   isActive 
                     ? "text-primary" 
                     : "text-muted-foreground hover:text-foreground"

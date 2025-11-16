@@ -68,9 +68,9 @@ export default {
       },
       backgroundImage: {
         'gradient-primary': 'var(--gradient-primary)',
+        'gradient-glow': 'var(--gradient-glow)',
         'gradient-card': 'var(--gradient-card)',
         'gradient-accent': 'var(--gradient-accent)',
-        'gradient-intense': 'var(--gradient-intense)',
       },
       borderRadius: {
         lg: "var(--radius)",

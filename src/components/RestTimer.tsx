@@ -16,6 +16,7 @@ export default function RestTimer({ targetSeconds, onComplete, autoStart = false
   const [isVisible, setIsVisible] = useState(autoStart);
   const intervalRef = useRef<number | null>(null);
   const completedRef = useRef(false);
+  const endTimeRef = useRef<number | null>(null);
 useEffect(() => {
   // Reset quand la durée change et auto-démarrer si demandé
   if (intervalRef.current) {
@@ -23,12 +24,14 @@ useEffect(() => {
     intervalRef.current = null;
   }
   completedRef.current = false;
+  endTimeRef.current = autoStart ? Date.now() + targetSeconds * 1000 : null;
   setTimeLeft(targetSeconds);
   setIsPaused(false);
   setIsVisible(autoStart);
 }, [targetSeconds, autoStart]);
 
 useEffect(() => {
+  // Si le timer est en pause, invisible ou déjà terminé, on stoppe tout
   if (isPaused || !isVisible || timeLeft <= 0) {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -37,25 +40,30 @@ useEffect(() => {
     return;
   }
 
-  // Ne créer l'intervalle que s'il n'existe pas déjà
+  // Initialiser l'heure de fin si nécessaire (démarrage ou reprise)
+  if (!endTimeRef.current) {
+    endTimeRef.current = Date.now() + timeLeft * 1000;
+  }
+
+  // Démarrer une boucle d'update basée sur l'heure, pour éviter la dérive
   if (!intervalRef.current) {
     intervalRef.current = window.setInterval(() => {
-      setTimeLeft((prev) => {
-        const next = prev - 1;
-        if (next <= 0) {
-          if (!completedRef.current) {
-            completedRef.current = true;
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current);
-              intervalRef.current = null;
-            }
-            onComplete();
-          }
-          return 0;
+      if (!endTimeRef.current) return;
+      const remaining = Math.max(0, Math.ceil((endTimeRef.current - Date.now()) / 1000));
+      setTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
         }
-        return next;
-      });
-    }, 1000);
+        endTimeRef.current = null;
+        if (!completedRef.current) {
+          completedRef.current = true;
+          onComplete();
+        }
+      }
+    }, 250);
   }
 
   return () => {
@@ -95,7 +103,7 @@ useEffect(() => {
             <Clock className="h-5 w-5 text-accent-foreground" />
             <span className="font-semibold">Repos en cours</span>
           </div>
-          <Button onClick={() => { if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; } completedRef.current = true; onCancel ? onCancel() : setIsVisible(false); }} variant="ghost" size="icon">
+          <Button onClick={() => { if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; } endTimeRef.current = null; completedRef.current = true; onCancel ? onCancel() : setIsVisible(false); }} variant="ghost" size="icon">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -103,7 +111,20 @@ useEffect(() => {
         <div className="flex items-center justify-between mb-2">
           <span className="text-3xl font-mono font-bold">{formatTime(timeLeft)}</span>
           <Button 
-            onClick={() => setIsPaused(!isPaused)} 
+            onClick={() => {
+              setIsPaused((prev) => {
+                const next = !prev;
+                if (next) {
+                  // Mise en pause: geler le temps restant
+                  if (intervalRef.current) {
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                  }
+                  endTimeRef.current = null;
+                }
+                return next;
+              });
+            }} 
             variant="outline"
             size="sm"
           >

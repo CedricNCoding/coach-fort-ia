@@ -264,42 +264,54 @@ export default function Session() {
     
     const completedSets = sessionSets.filter(s => s.template_exercise_id === currentExercise.id).length;
     
-    // Si on a complété un set pour cet exercice
-    if (completedSets >= currentSetNumber) {
-      // Passer à l'exercice suivant dans le superset
-      if (currentExerciseIndexInSuperset < currentSupersetExercises.length - 1) {
-        setCurrentExerciseIndexInSuperset(prev => prev + 1);
-      } else {
-        // On a terminé tous les exercices du superset pour ce set
-        const minCompletedSets = Math.min(
-          ...currentSupersetExercises.map(ex => 
-            sessionSets.filter(s => s.template_exercise_id === ex.id).length
-          )
-        );
-        const maxTargetSets = Math.max(
-          ...currentSupersetExercises.map(ex => ex.target_sets || 3)
-        );
-        
-        if (minCompletedSets < maxTargetSets) {
-          // Démarrer le timer de repos puis recommencer au premier exercice
-          setShowRestTimer(true);
-        } else {
-          // Superset terminé, passer au suivant
-          if (currentSupersetIndex < supersetKeys.length - 1) {
-            setCurrentSupersetIndex(prev => prev + 1);
-            setCurrentExerciseIndexInSuperset(0);
-            setCurrentSetNumber(1);
-          }
-        }
+    // Vérifier si on vient de compléter une série pour l'exercice actuel
+    if (completedSets < currentSetNumber) return; // Pas encore de série complétée
+    
+    // Une série a été complétée pour cet exercice
+    
+    // Cas 1: Il reste des exercices dans le superset actuel
+    if (currentExerciseIndexInSuperset < currentSupersetExercises.length - 1) {
+      // Passer à l'exercice suivant du superset (sans repos)
+      setCurrentExerciseIndexInSuperset(prev => prev + 1);
+      return;
+    }
+    
+    // Cas 2: On a terminé le dernier exercice du superset pour cette série
+    // Vérifier si on a complété toutes les séries du superset
+    const allExercisesCompletedForCurrentSet = currentSupersetExercises.every(ex => {
+      const sets = sessionSets.filter(s => s.template_exercise_id === ex.id).length;
+      return sets >= currentSetNumber;
+    });
+    
+    if (!allExercisesCompletedForCurrentSet) {
+      // Certains exercices du superset n'ont pas encore complété cette série
+      // (ne devrait pas arriver avec la logique actuelle, mais au cas où)
+      return;
+    }
+    
+    // Tous les exercices du superset ont complété cette série
+    // Vérifier s'il reste des séries à faire
+    const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));
+    
+    if (currentSetNumber < targetSets) {
+      // Il reste des séries à faire : démarrer le timer inter-superset
+      setShowRestTimer(true);
+    } else {
+      // Toutes les séries sont complétées : passer au superset suivant
+      if (currentSupersetIndex < supersetKeys.length - 1) {
+        setCurrentSupersetIndex(prev => prev + 1);
+        setCurrentExerciseIndexInSuperset(0);
+        setCurrentSetNumber(1);
       }
+      // Sinon, areAllSupersetsComplete sera true et affichera le bouton de fin
     }
   }, [sessionSets, currentExercise, currentExerciseIndexInSuperset, currentSupersetExercises, showRestTimer, currentSetNumber, currentSupersetIndex, supersetKeys.length]);
   
-  // Gérer la fin du timer de repos
+  // Gérer la fin du timer de repos inter-superset
   const handleRestComplete = () => {
     setShowRestTimer(false);
-    setCurrentExerciseIndexInSuperset(0);
-    setCurrentSetNumber(prev => prev + 1);
+    setCurrentExerciseIndexInSuperset(0); // Recommencer au premier exercice du superset
+    setCurrentSetNumber(prev => prev + 1); // Passer à la série suivante
   };
 
   if (isLoading) {
@@ -425,11 +437,17 @@ export default function Session() {
               </CardContent>
             </Card>
           ) : showRestTimer ? (
-            <Card>
-              <CardContent className="pt-6">
+            <Card className="border-accent">
+              <CardHeader>
+                <CardTitle className="text-center">Repos inter-superset</CardTitle>
+                <p className="text-center text-sm text-muted-foreground">
+                  Série {currentSetNumber} terminée • Préparez-vous pour la série {currentSetNumber + 1}
+                </p>
+              </CardHeader>
+              <CardContent>
                 <RestTimer
                   autoStart
-                  targetSeconds={currentSupersetExercises[0]?.superset_rest_seconds || currentSupersetExercises[0]?.target_rest_seconds || 90}
+                  targetSeconds={currentSupersetExercises[0]?.superset_rest_seconds || 90}
                   onComplete={handleRestComplete}
                   onCancel={handleRestComplete}
                 />

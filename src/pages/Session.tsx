@@ -141,14 +141,16 @@ export default function Session() {
     mutationFn: async () => {
       if (!currentSession?.id) throw new Error("No session");
 
-      const avgDifficulty = sessionSets.reduce((acc, s) => acc + (s.perceived_difficulty || 0), 0) / sessionSets.length;
+      const avgDifficulty = sessionSets.length > 0 
+        ? sessionSets.reduce((acc, s) => acc + (s.perceived_difficulty || 0), 0) / sessionSets.length 
+        : null;
 
       const { error: sessionError } = await supabase
         .from("sessions")
         .update({
           status: "completed",
           finished_at: new Date().toISOString(),
-          avg_difficulty: avgDifficulty || null
+          avg_difficulty: avgDifficulty
         })
         .eq("id", currentSession.id);
 

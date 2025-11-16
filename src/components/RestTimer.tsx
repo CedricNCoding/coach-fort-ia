@@ -29,31 +29,34 @@ useEffect(() => {
 }, [targetSeconds, autoStart]);
 
 useEffect(() => {
-  if (isPaused || !isVisible) return;
-  if (timeLeft <= 0) return;
-
-  if (intervalRef.current) {
-    clearInterval(intervalRef.current);
-    intervalRef.current = null;
+  if (isPaused || !isVisible || timeLeft <= 0) {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    return;
   }
 
-  intervalRef.current = window.setInterval(() => {
-    setTimeLeft((prev) => {
-      const next = prev - 1;
-      if (next <= 0) {
-        if (!completedRef.current) {
-          completedRef.current = true;
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
+  // Ne créer l'intervalle que s'il n'existe pas déjà
+  if (!intervalRef.current) {
+    intervalRef.current = window.setInterval(() => {
+      setTimeLeft((prev) => {
+        const next = prev - 1;
+        if (next <= 0) {
+          if (!completedRef.current) {
+            completedRef.current = true;
+            if (intervalRef.current) {
+              clearInterval(intervalRef.current);
+              intervalRef.current = null;
+            }
+            onComplete();
           }
-          onComplete();
+          return 0;
         }
-        return 0;
-      }
-      return next;
-    });
-  }, 1000);
+        return next;
+      });
+    }, 1000);
+  }
 
   return () => {
     if (intervalRef.current) {
@@ -61,7 +64,7 @@ useEffect(() => {
       intervalRef.current = null;
     }
   };
-}, [isPaused, isVisible, timeLeft, onComplete]);
+}, [isPaused, isVisible, onComplete]);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);

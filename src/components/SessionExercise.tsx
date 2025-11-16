@@ -307,46 +307,42 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
 
               <div className="space-y-2">
                 <Label>Difficulté perçue</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <Button
                     type="button"
                     variant={setForm.perceived_difficulty <= 5 ? "default" : "outline"}
                     onClick={() => setSetForm({ ...setForm, perceived_difficulty: 5 })}
-                    className="h-auto py-3 flex flex-col items-center gap-1"
+                    className="h-auto py-2 flex flex-col items-center gap-1"
                   >
-                    <span className="text-lg">😊</span>
+                    <span className="text-2xl">😊</span>
                     <span className="text-xs">Facile</span>
-                    <span className="text-xs text-muted-foreground">3-4 reps en réserve</span>
                   </Button>
                   <Button
                     type="button"
                     variant={setForm.perceived_difficulty >= 6 && setForm.perceived_difficulty <= 7 ? "default" : "outline"}
                     onClick={() => setSetForm({ ...setForm, perceived_difficulty: 7 })}
-                    className="h-auto py-3 flex flex-col items-center gap-1"
+                    className="h-auto py-2 flex flex-col items-center gap-1"
                   >
-                    <span className="text-lg">🙂</span>
+                    <span className="text-2xl">🙂</span>
                     <span className="text-xs">Moyen</span>
-                    <span className="text-xs text-muted-foreground">~2 reps en réserve</span>
                   </Button>
                   <Button
                     type="button"
                     variant={setForm.perceived_difficulty >= 8 && setForm.perceived_difficulty <= 9 ? "default" : "outline"}
                     onClick={() => setSetForm({ ...setForm, perceived_difficulty: 8 })}
-                    className="h-auto py-3 flex flex-col items-center gap-1"
+                    className="h-auto py-2 flex flex-col items-center gap-1"
                   >
-                    <span className="text-lg">😰</span>
+                    <span className="text-2xl">😰</span>
                     <span className="text-xs">Difficile</span>
-                    <span className="text-xs text-muted-foreground">0-1 rep en réserve</span>
                   </Button>
                   <Button
                     type="button"
                     variant={setForm.perceived_difficulty >= 10 ? "default" : "outline"}
                     onClick={() => setSetForm({ ...setForm, perceived_difficulty: 10 })}
-                    className="h-auto py-3 flex flex-col items-center gap-1"
+                    className="h-auto py-2 flex flex-col items-center gap-1"
                   >
-                    <span className="text-lg">😫</span>
+                    <span className="text-2xl">😫</span>
                     <span className="text-xs">Échec</span>
-                    <span className="text-xs text-muted-foreground">0 rep possible</span>
                   </Button>
                 </div>
               </div>

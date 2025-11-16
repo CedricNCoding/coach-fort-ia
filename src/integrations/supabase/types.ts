@@ -319,6 +319,7 @@ export type Database = {
           next_target_weight_kg: number | null
           order_index: number
           superset_group: string | null
+          superset_rest_seconds: number | null
           target_difficulty_note: string | null
           target_reps_max: number | null
           target_reps_min: number | null
@@ -335,6 +336,7 @@ export type Database = {
           next_target_weight_kg?: number | null
           order_index?: number
           superset_group?: string | null
+          superset_rest_seconds?: number | null
           target_difficulty_note?: string | null
           target_reps_max?: number | null
           target_reps_min?: number | null
@@ -351,6 +353,7 @@ export type Database = {
           next_target_weight_kg?: number | null
           order_index?: number
           superset_group?: string | null
+          superset_rest_seconds?: number | null
           target_difficulty_note?: string | null
           target_reps_max?: number | null
           target_reps_min?: number | null

@@ -4,21 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Clock, X } from "lucide-react";
 
 interface RestTimerProps {
-  seconds: number;
+  targetSeconds: number;
   onComplete: () => void;
-  onSkip: () => void;
 }
 
-/**
- * Composant minuteur de repos automatique
- * Démarre automatiquement et affiche un compte à rebours
- */
-export default function RestTimer({ seconds, onComplete, onSkip }: RestTimerProps) {
-  const [timeLeft, setTimeLeft] = useState(seconds);
+export default function RestTimer({ targetSeconds, onComplete }: RestTimerProps) {
+  const [timeLeft, setTimeLeft] = useState(targetSeconds);
   const [isPaused, setIsPaused] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    if (isPaused || timeLeft <= 0) return;
+    if (isPaused || timeLeft <= 0 || !isVisible) return;
 
     const interval = setInterval(() => {
       setTimeLeft(prev => {
@@ -32,7 +28,7 @@ export default function RestTimer({ seconds, onComplete, onSkip }: RestTimerProp
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timeLeft, isPaused, onComplete]);
+  }, [timeLeft, isPaused, onComplete, isVisible]);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -40,16 +36,19 @@ export default function RestTimer({ seconds, onComplete, onSkip }: RestTimerProp
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const progress = ((seconds - timeLeft) / seconds) * 100;
+  const progress = ((targetSeconds - timeLeft) / targetSeconds) * 100;
+
+  if (!isVisible) {
+    return (
+      <Button onClick={() => setIsVisible(true)} variant="outline" className="w-full">
+        <Clock className="h-4 w-4 mr-2" />
+        Démarrer le repos ({targetSeconds}s)
+      </Button>
+    );
+  }
 
   if (timeLeft === 0) {
-    return (
-      <Card className="bg-success/20 border-success">
-        <CardContent className="py-4 text-center">
-          <p className="font-bold text-success">Repos terminé ! Prêt pour le prochain set ?</p>
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   return (
@@ -60,7 +59,7 @@ export default function RestTimer({ seconds, onComplete, onSkip }: RestTimerProp
             <Clock className="h-5 w-5 text-accent-foreground" />
             <span className="font-semibold">Repos en cours</span>
           </div>
-          <Button onClick={onSkip} variant="ghost" size="icon">
+          <Button onClick={() => setIsVisible(false)} variant="ghost" size="icon">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -76,7 +75,6 @@ export default function RestTimer({ seconds, onComplete, onSkip }: RestTimerProp
           </Button>
         </div>
 
-        {/* Barre de progression */}
         <div className="h-2 bg-muted rounded-full overflow-hidden">
           <div 
             className="h-full bg-accent transition-all duration-300"

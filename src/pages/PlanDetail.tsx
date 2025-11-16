@@ -190,7 +190,7 @@ export default function PlanDetail() {
   ).sort();
 
   // Filtrer les exercices par groupe musculaire sélectionné
-  const filteredExercises = selectedMuscleGroup
+  const filteredExercises = selectedMuscleGroup && selectedMuscleGroup !== "all"
     ? availableExercises.filter(ex => ex.muscle_group === selectedMuscleGroup)
     : availableExercises;
 
@@ -282,9 +282,9 @@ export default function PlanDetail() {
                 <div className="space-y-2">
                   <Label>Groupe musculaire</Label>
                   <Select
-                    value={selectedMuscleGroup}
+                    value={selectedMuscleGroup || "all"}
                     onValueChange={(val) => {
-                      setSelectedMuscleGroup(val);
+                      setSelectedMuscleGroup(val === "all" ? "" : val);
                       setExerciseForm({ ...exerciseForm, exercise_id: "" });
                     }}
                   >
@@ -292,7 +292,7 @@ export default function PlanDetail() {
                       <SelectValue placeholder="Tous les groupes" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Tous les groupes</SelectItem>
+                      <SelectItem value="all">Tous les groupes</SelectItem>
                       {muscleGroups.map(group => (
                         <SelectItem key={group} value={group}>
                           {group}

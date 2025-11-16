@@ -19,8 +19,11 @@ export default function Plans() {
   const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<number | null>(null);
   const [formData, setFormData] = useState({ name: "", goal: "", notes: "" });
+  const [renamePlanId, setRenamePlanId] = useState<number | null>(null);
+  const [renamePlanName, setRenamePlanName] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
 
@@ -59,6 +62,24 @@ export default function Plans() {
     }
   });
 
+  // Mutation renommer
+  const renamePlanMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: number; name: string }) => {
+      const { error } = await supabase
+        .from("workout_templates")
+        .update({ name })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workout_templates"] });
+      toast({ title: "Plan renommé" });
+      setShowRenameDialog(false);
+      setRenamePlanId(null);
+      setRenamePlanName("");
+    }
+  });
+
   // Mutation suppression
   const deletePlanMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -80,6 +101,16 @@ export default function Plans() {
       return;
     }
     createPlanMutation.mutate(formData);
+  };
+
+  const handleRenamePlan = () => {
+    if (!renamePlanName.trim()) {
+      toast({ variant: "destructive", title: "Le nom est requis" });
+      return;
+    }
+    if (renamePlanId) {
+      renamePlanMutation.mutate({ id: renamePlanId, name: renamePlanName });
+    }
   };
 
   const handleImportCSV = async () => {
@@ -255,6 +286,29 @@ export default function Plans() {
               </DialogContent>
             </Dialog>
             
+            {/* Dialog Renommer Plan */}
+            <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Renommer le plan</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="rename-name">Nom du plan</Label>
+                    <Input
+                      id="rename-name"
+                      value={renamePlanName}
+                      onChange={(e) => setRenamePlanName(e.target.value)}
+                      placeholder="Ex: Push Day"
+                    />
+                  </div>
+                  <Button onClick={handleRenamePlan} className="w-full">
+                    Renommer
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
               <DialogTrigger asChild>
                 <Button>
@@ -331,17 +385,34 @@ export default function Plans() {
                         <CardDescription className="capitalize">{plan.goal}</CardDescription>
                       )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deletePlanMutation.mutate(plan.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRenamePlanId(plan.id);
+                          setRenamePlanName(plan.name);
+                          setShowRenameDialog(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm("Supprimer ce plan ?")) {
+                            deletePlanMutation.mutate(plan.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 {plan.notes && (

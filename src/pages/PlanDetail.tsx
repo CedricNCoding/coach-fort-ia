@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, ArrowLeft, Trash2, GripVertical, Download, Calendar, Brain, CheckCircle2, AlertCircle, Lightbulb, TrendingUp } from "lucide-react";
+import { Plus, ArrowLeft, Trash2, GripVertical, Download, Calendar, Brain, CheckCircle2, AlertCircle, Lightbulb, TrendingUp, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -22,6 +22,8 @@ export default function PlanDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showAddExerciseDialog, setShowAddExerciseDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [newPlanName, setNewPlanName] = useState("");
   const [recurringDays, setRecurringDays] = useState<number[]>([]);
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>("");
   const [coachAnalysis, setCoachAnalysis] = useState<any>(null);
@@ -183,6 +185,31 @@ export default function PlanDetail() {
     }
   });
 
+  // Mutation renommer le plan
+  const renamePlanMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const { error } = await supabase
+        .from("workout_templates")
+        .update({ name })
+        .eq("id", parseInt(id!));
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workout_template", id] });
+      queryClient.invalidateQueries({ queryKey: ["workout_templates"] });
+      toast({ title: "Plan renommé" });
+      setShowRenameDialog(false);
+    }
+  });
+
+  const handleRenamePlan = () => {
+    if (!newPlanName.trim()) {
+      toast({ variant: "destructive", title: "Le nom est requis" });
+      return;
+    }
+    renamePlanMutation.mutate(newPlanName);
+  };
+
   const handleAddExercise = () => {
     if (!exerciseForm.exercise_id) {
       toast({ variant: "destructive", title: "Veuillez sélectionner un exercice" });
@@ -283,7 +310,19 @@ export default function PlanDetail() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-3xl font-bold">{plan?.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold">{plan?.name}</h1>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => {
+                  setNewPlanName(plan?.name || "");
+                  setShowRenameDialog(true);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </div>
             {plan?.goal && (
               <p className="text-muted-foreground capitalize">{plan.goal}</p>
             )}
@@ -451,6 +490,29 @@ export default function PlanDetail() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Dialog renommer plan */}
+        <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Renommer le plan</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="plan-name">Nom du plan</Label>
+                <Input
+                  id="plan-name"
+                  value={newPlanName}
+                  onChange={(e) => setNewPlanName(e.target.value)}
+                  placeholder="Ex: Push Day"
+                />
+              </div>
+              <Button onClick={handleRenamePlan} className="w-full">
+                Renommer
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Section planification récurrente */}
         <Card>

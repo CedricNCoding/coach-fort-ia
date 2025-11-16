@@ -8,62 +8,62 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Dark Theme - Multicolor Gradient Background */
-    --background: 230 25% 8%;
-    --foreground: 210 20% 95%;
+    /* Dark Premium Theme - Violet/Magenta Glow */
+    --background: 240 10% 8%;
+    --foreground: 0 0% 98%;
 
-    --card: 230 20% 12%;
-    --card-foreground: 210 20% 95%;
+    --card: 240 8% 12%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 230 20% 12%;
-    --popover-foreground: 210 20% 95%;
+    --popover: 240 8% 12%;
+    --popover-foreground: 0 0% 98%;
 
-    /* Cyan vibrant pour actions principales */
-    --primary: 185 100% 45%;
-    --primary-foreground: 230 25% 8%;
+    /* Violet vibrant pour actions principales */
+    --primary: 265 100% 65%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Violet pour variantes */
-    --secondary: 260 60% 18%;
-    --secondary-foreground: 210 20% 95%;
+    /* Gris foncé pour variantes */
+    --secondary: 240 8% 18%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 230 15% 18%;
-    --muted-foreground: 220 10% 65%;
+    --muted: 240 6% 16%;
+    --muted-foreground: 240 5% 70%;
 
     /* Magenta pour accents */
-    --accent: 320 80% 50%;
-    --accent-foreground: 210 20% 98%;
+    --accent: 320 100% 65%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 210 20% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    /* Vert pour succès */
-    --success: 142 76% 40%;
-    --success-foreground: 210 20% 98%;
+    /* Cyan pour succès */
+    --success: 180 100% 45%;
+    --success-foreground: 0 0% 100%;
 
     /* Orange pour warnings */
-    --warning: 38 92% 55%;
-    --warning-foreground: 230 25% 8%;
+    --warning: 38 100% 60%;
+    --warning-foreground: 240 10% 8%;
 
-    --border: 230 20% 20%;
-    --input: 230 20% 20%;
-    --ring: 185 100% 45%;
+    --border: 240 8% 20%;
+    --input: 240 8% 20%;
+    --ring: 265 100% 65%;
 
-    --radius: 0.75rem;
+    --radius: 1rem;
 
-    /* Gradients multicolores sombres */
-    --gradient-primary: linear-gradient(135deg, hsl(230 40% 12%), hsl(260 60% 15%), hsl(230 40% 12%));
-    --gradient-card: linear-gradient(135deg, hsl(230 30% 14%), hsl(260 50% 16%));
-    --gradient-accent: linear-gradient(135deg, hsl(185 100% 25%), hsl(260 60% 25%), hsl(320 80% 25%));
-    --gradient-intense: linear-gradient(135deg, hsl(230 60% 10%), hsl(260 70% 12%), hsl(185 90% 15%));
+    /* Gradients avec glow violet/magenta */
+    --gradient-primary: radial-gradient(ellipse 80% 80% at 50% -20%, hsl(280 100% 30% / 0.4), transparent 100%), linear-gradient(135deg, hsl(240 10% 6%), hsl(240 10% 8%));
+    --gradient-glow: radial-gradient(circle at 100% 50%, hsl(280 100% 40% / 0.3), transparent 50%), radial-gradient(circle at 0% 50%, hsl(320 100% 50% / 0.2), transparent 50%);
+    --gradient-card: linear-gradient(135deg, hsl(240 10% 12%), hsl(240 8% 14%));
+    --gradient-accent: linear-gradient(135deg, hsl(265 100% 65%), hsl(320 100% 65%));
 
-    --sidebar-background: 230 25% 10%;
-    --sidebar-foreground: 210 20% 95%;
-    --sidebar-primary: 185 100% 45%;
-    --sidebar-primary-foreground: 230 25% 8%;
-    --sidebar-accent: 260 60% 18%;
-    --sidebar-accent-foreground: 210 20% 95%;
-    --sidebar-border: 230 20% 20%;
-    --sidebar-ring: 185 100% 45%;
+    --sidebar-background: 240 10% 10%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 265 100% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 8% 18%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 8% 20%;
+    --sidebar-ring: 265 100% 65%;
   }
 }
 
@@ -76,5 +76,37 @@ All colors MUST be HSL.
     @apply text-foreground;
     background: var(--gradient-primary);
     min-height: 100vh;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 50%;
+    height: 100%;
+    background: var(--gradient-glow);
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+@layer components {
+  .card-glow {
+    position: relative;
+  }
+  
+  .card-glow::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(265 100% 65% / 0.3), hsl(320 100% 65% / 0.3));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
   }
 }

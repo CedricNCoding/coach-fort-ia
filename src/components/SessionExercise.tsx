@@ -40,6 +40,7 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
   const lastCompletedSet = sessionSets.length > 0 ? sessionSets[sessionSets.length - 1] : null;
   const [setForm, setSetForm] = useState({
     reps: lastCompletedSet?.reps || templateExercise.target_reps_max || 12,
+    time_seconds: lastCompletedSet?.time_seconds || templateExercise.target_time_seconds || 0,
     weight_kg: lastCompletedSet ? Number(lastCompletedSet.weight_kg) : Number(templateExercise.next_target_weight_kg || templateExercise.target_weight_kg || 0),
     perceived_difficulty: lastCompletedSet?.perceived_difficulty || 7,
     pain: false,
@@ -121,7 +122,8 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
           exercise_id: templateExercise.exercise_id,
           template_exercise_id: templateExercise.id,
           set_index: setIndex,
-          reps: setForm.reps,
+          reps: templateExercise.exercises.measurement_type === 'time' ? 1 : setForm.reps,
+          time_seconds: templateExercise.exercises.measurement_type === 'time' ? setForm.time_seconds : null,
           weight_kg: setForm.weight_kg,
           perceived_difficulty: setForm.perceived_difficulty,
           pain: setForm.pain ? 1 : 0,
@@ -139,6 +141,7 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
       setSetForm(prev => ({
         ...prev,
         reps: setForm.reps,
+        time_seconds: setForm.time_seconds,
         weight_kg: setForm.weight_kg,
         perceived_difficulty: setForm.perceived_difficulty,
         pain: false,
@@ -161,6 +164,7 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
     const lastSet = sessionSets[sessionSets.length - 1];
     setSetForm({
       reps: lastSet.reps,
+      time_seconds: lastSet.time_seconds || 0,
       weight_kg: Number(lastSet.weight_kg),
       perceived_difficulty: lastSet.perceived_difficulty || 7,
       pain: lastSet.pain === 1,
@@ -197,10 +201,17 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
           <p className="text-muted-foreground">Sets</p>
           <p className="font-bold">{templateExercise.target_sets}</p>
         </div>
-        <div className="p-2 bg-muted rounded">
-          <p className="text-muted-foreground">Reps</p>
-          <p className="font-bold">{templateExercise.target_reps_min}-{templateExercise.target_reps_max}</p>
-        </div>
+        {templateExercise.exercises.measurement_type === 'time' ? (
+          <div className="p-2 bg-muted rounded">
+            <p className="text-muted-foreground">Temps</p>
+            <p className="font-bold">{templateExercise.target_time_seconds}s</p>
+          </div>
+        ) : (
+          <div className="p-2 bg-muted rounded">
+            <p className="text-muted-foreground">Reps</p>
+            <p className="font-bold">{templateExercise.target_reps_min}-{templateExercise.target_reps_max}</p>
+          </div>
+        )}
         <div className="p-2 bg-muted rounded">
           <p className="text-muted-foreground">Charge</p>
           <p className="font-bold">
@@ -241,7 +252,11 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
           {sessionSets.map((set, idx) => (
             <div key={set.id} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
               <span className="font-bold w-8">#{idx + 1}</span>
-              <span>{set.reps} × {Number(set.weight_kg).toFixed(1)} kg</span>
+              {templateExercise.exercises.measurement_type === 'time' ? (
+                <span>{set.time_seconds}s × {Number(set.weight_kg).toFixed(1)} kg</span>
+              ) : (
+                <span>{set.reps} × {Number(set.weight_kg).toFixed(1)} kg</span>
+              )}
               <span className="text-muted-foreground">• Difficulté {set.perceived_difficulty}/10</span>
               {set.pain === 1 && <AlertCircle className="h-4 w-4 text-destructive" />}
               {set.is_warmup === 1 && <span className="text-xs text-muted-foreground">(Échauffement)</span>}
@@ -286,14 +301,25 @@ export default function SessionExercise({ templateExercise, sessionId, sessionSe
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Reps</Label>
-                  <Input
-                    type="number"
-                    value={setForm.reps}
-                    onChange={(e) => setSetForm({ ...setForm, reps: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
+                {templateExercise.exercises.measurement_type === 'time' ? (
+                  <div className="space-y-2">
+                    <Label>Temps (secondes)</Label>
+                    <Input
+                      type="number"
+                      value={setForm.time_seconds}
+                      onChange={(e) => setSetForm({ ...setForm, time_seconds: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Reps</Label>
+                    <Input
+                      type="number"
+                      value={setForm.reps}
+                      onChange={(e) => setSetForm({ ...setForm, reps: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Poids (kg)</Label>
                   <Input

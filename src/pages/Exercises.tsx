@@ -27,7 +27,8 @@ export default function Exercises() {
     muscle_group: "",
     equipment: "",
     default_rest_seconds: 90,
-    notes: ""
+    notes: "",
+    measurement_type: "reps" as "reps" | "time"
   });
 
   // Charger les exercices
@@ -99,7 +100,8 @@ export default function Exercises() {
       muscle_group: "",
       equipment: "",
       default_rest_seconds: 90,
-      notes: ""
+      notes: "",
+      measurement_type: "reps"
     });
   };
 
@@ -118,7 +120,8 @@ export default function Exercises() {
       muscle_group: exercise.muscle_group || "",
       equipment: exercise.equipment || "",
       default_rest_seconds: exercise.default_rest_seconds || 90,
-      notes: exercise.notes || ""
+      notes: exercise.notes || "",
+      measurement_type: exercise.measurement_type || "reps"
     });
     setShowAddDialog(true);
   };
@@ -291,6 +294,21 @@ export default function Exercises() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label>Type de mesure</Label>
+                    <Select
+                      value={formData.measurement_type}
+                      onValueChange={(value: "reps" | "time") => setFormData({ ...formData, measurement_type: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="reps">Répétitions</SelectItem>
+                        <SelectItem value="time">Temps (secondes)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
                     <Label>Notes</Label>
                     <Textarea
                       value={formData.notes}
@@ -378,6 +396,9 @@ export default function Exercises() {
                       Équipement : {exercise.equipment}
                     </div>
                   )}
+                  <div className="text-muted-foreground">
+                    Type : {exercise.measurement_type === 'time' ? 'Temps' : 'Répétitions'}
+                  </div>
                   <div className="text-muted-foreground">
                     Repos : {exercise.default_rest_seconds}s
                   </div>

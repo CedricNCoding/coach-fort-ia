@@ -57,6 +57,7 @@ export type Database = {
           equipment: string | null
           id: number
           is_builtin: number | null
+          measurement_type: string | null
           muscle_group: string | null
           name: string
           notes: string | null
@@ -68,6 +69,7 @@ export type Database = {
           equipment?: string | null
           id?: number
           is_builtin?: number | null
+          measurement_type?: string | null
           muscle_group?: string | null
           name: string
           notes?: string | null
@@ -79,6 +81,7 @@ export type Database = {
           equipment?: string | null
           id?: number
           is_builtin?: number | null
+          measurement_type?: string | null
           muscle_group?: string | null
           name?: string
           notes?: string | null
@@ -210,6 +213,7 @@ export type Database = {
           session_id: number
           set_index: number
           template_exercise_id: number | null
+          time_seconds: number | null
           weight_kg: number
         }
         Insert: {
@@ -225,6 +229,7 @@ export type Database = {
           session_id: number
           set_index: number
           template_exercise_id?: number | null
+          time_seconds?: number | null
           weight_kg: number
         }
         Update: {
@@ -240,6 +245,7 @@ export type Database = {
           session_id?: number
           set_index?: number
           template_exercise_id?: number | null
+          time_seconds?: number | null
           weight_kg?: number
         }
         Relationships: [
@@ -331,6 +337,7 @@ export type Database = {
           target_reps_min: number | null
           target_rest_seconds: number | null
           target_sets: number | null
+          target_time_seconds: number | null
           target_weight_kg: number | null
           workout_template_id: number
         }
@@ -348,6 +355,7 @@ export type Database = {
           target_reps_min?: number | null
           target_rest_seconds?: number | null
           target_sets?: number | null
+          target_time_seconds?: number | null
           target_weight_kg?: number | null
           workout_template_id: number
         }
@@ -365,6 +373,7 @@ export type Database = {
           target_reps_min?: number | null
           target_rest_seconds?: number | null
           target_sets?: number | null
+          target_time_seconds?: number | null
           target_weight_kg?: number | null
           workout_template_id?: number
         }

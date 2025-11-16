@@ -21,12 +21,32 @@ import {
 } from "@/components/ui/alert-dialog";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function History() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [deleteSessionId, setDeleteSessionId] = useState<number | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<"1m" | "3m" | "6m" | "all">("3m");
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("all");
+
+  // Récupérer les plans d'entraînement
+  const { data: plans } = useQuery({
+    queryKey: ["workout_templates"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Non authentifié");
+
+      const { data, error } = await supabase
+        .from("workout_templates")
+        .select("id, name")
+        .eq("user_id", user.id)
+        .order("name");
+
+      if (error) throw error;
+      return data;
+    },
+  });
 
   // Récupérer les séances terminées de l'utilisateur
   const { data: sessions, isLoading } = useQuery({
@@ -40,7 +60,7 @@ export default function History() {
         .select(`
           *,
           planned_workouts (
-            workout_templates (name)
+            workout_templates (id, name)
           )
         `)
         .eq("user_id", user.id)
@@ -82,28 +102,42 @@ export default function History() {
     },
   });
 
-  // Filtrer les sessions selon la période
+  // Filtrer les sessions selon la période et le plan
   const getFilteredSessions = () => {
     if (!sessions) return [];
-    const now = new Date();
-    let cutoffDate: Date;
-
-    switch (selectedPeriod) {
-      case "1m":
-        cutoffDate = subMonths(now, 1);
-        break;
-      case "3m":
-        cutoffDate = subMonths(now, 3);
-        break;
-      case "6m":
-        cutoffDate = subMonths(now, 6);
-        break;
-      case "all":
-      default:
-        return sessions;
+    
+    let filtered = sessions;
+    
+    // Filtre par plan
+    if (selectedPlanId !== "all") {
+      filtered = filtered.filter(s => 
+        s.planned_workouts?.workout_templates?.id === parseInt(selectedPlanId)
+      );
     }
+    
+    // Filtre par période
+    if (selectedPeriod !== "all") {
+      const now = new Date();
+      let cutoffDate: Date;
 
-    return sessions.filter(s => s.finished_at && new Date(s.finished_at) >= cutoffDate);
+      switch (selectedPeriod) {
+        case "1m":
+          cutoffDate = subMonths(now, 1);
+          break;
+        case "3m":
+          cutoffDate = subMonths(now, 3);
+          break;
+        case "6m":
+          cutoffDate = subMonths(now, 6);
+          break;
+        default:
+          return filtered;
+      }
+
+      filtered = filtered.filter(s => s.finished_at && new Date(s.finished_at) >= cutoffDate);
+    }
+    
+    return filtered;
   };
 
   // Préparer les données pour les graphiques
@@ -149,19 +183,36 @@ export default function History() {
   return (
     <Layout>
       <div className="container mx-auto p-4 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4">
           <h1 className="text-3xl font-bold">Historique</h1>
-          <div className="flex gap-2">
-            {(["1m", "3m", "6m", "all"] as const).map(period => (
-              <Button
-                key={period}
-                variant={selectedPeriod === period ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedPeriod(period)}
-              >
-                {period === "all" ? "Tout" : period.toUpperCase()}
-              </Button>
-            ))}
+          
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
+              <SelectTrigger className="w-full sm:w-[300px]">
+                <SelectValue placeholder="Tous les plans" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les plans</SelectItem>
+                {plans?.map(plan => (
+                  <SelectItem key={plan.id} value={plan.id.toString()}>
+                    {plan.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex gap-2">
+              {(["1m", "3m", "6m", "all"] as const).map(period => (
+                <Button
+                  key={period}
+                  variant={selectedPeriod === period ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedPeriod(period)}
+                >
+                  {period === "all" ? "Tout" : period.toUpperCase()}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
 

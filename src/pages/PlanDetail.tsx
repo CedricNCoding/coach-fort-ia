@@ -10,8 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, ArrowLeft, Trash2, GripVertical, Download } from "lucide-react";
+import { Plus, ArrowLeft, Trash2, GripVertical, Download, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function PlanDetail() {
   const { id } = useParams();
@@ -19,6 +20,7 @@ export default function PlanDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showAddExerciseDialog, setShowAddExerciseDialog] = useState(false);
+  const [recurringDays, setRecurringDays] = useState<number[]>([]);
   
   // Formulaire ajout exercice
   const [exerciseForm, setExerciseForm] = useState({
@@ -42,6 +44,15 @@ export default function PlanDetail() {
         .eq("id", parseInt(id!))
         .single();
       if (error) throw error;
+      
+      // Charger les jours récurrents
+      if (data?.recurring_days) {
+        const days = Array.isArray(data.recurring_days) 
+          ? data.recurring_days.filter((d): d is number => typeof d === 'number')
+          : [];
+        setRecurringDays(days);
+      }
+      
       return data;
     }
   });
@@ -148,6 +159,22 @@ export default function PlanDetail() {
     }
   });
 
+  // Mutation mise à jour jours récurrents
+  const updateRecurringDaysMutation = useMutation({
+    mutationFn: async (days: number[]) => {
+      const { error } = await supabase
+        .from("workout_templates")
+        .update({ recurring_days: days })
+        .eq("id", parseInt(id!));
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workout_template", id] });
+      toast({ title: "Planification mise à jour" });
+    }
+  });
+
   const handleAddExercise = () => {
     if (!exerciseForm.exercise_id) {
       toast({ variant: "destructive", title: "Veuillez sélectionner un exercice" });
@@ -155,6 +182,32 @@ export default function PlanDetail() {
     }
     addExerciseMutation.mutate(exerciseForm);
   };
+
+  const handleExportCSV = async () => {
+    if (!plan || !planExercises) return;
+    const { exportPlanToCSV, downloadCSV } = await import("@/lib/csv-plan-import");
+    const csv = exportPlanToCSV(plan.name, planExercises);
+    downloadCSV(csv, `${plan.name.replace(/\s+/g, '_')}.csv`);
+  };
+
+  const handleToggleDay = (day: number) => {
+    const newDays = recurringDays.includes(day)
+      ? recurringDays.filter(d => d !== day)
+      : [...recurringDays, day].sort();
+    
+    setRecurringDays(newDays);
+    updateRecurringDaysMutation.mutate(newDays);
+  };
+
+  const daysOfWeek = [
+    { value: 1, label: "Lundi" },
+    { value: 2, label: "Mardi" },
+    { value: 3, label: "Mercredi" },
+    { value: 4, label: "Jeudi" },
+    { value: 5, label: "Vendredi" },
+    { value: 6, label: "Samedi" },
+    { value: 7, label: "Dimanche" },
+  ];
 
   // Grouper les exercices par superset
   const groupedExercises = planExercises.reduce((acc, ex) => {
@@ -177,6 +230,10 @@ export default function PlanDetail() {
               <p className="text-muted-foreground capitalize">{plan.goal}</p>
             )}
           </div>
+          <Button variant="outline" onClick={handleExportCSV}>
+            <Download className="h-4 w-4 mr-2" />
+            Exporter CSV
+          </Button>
           <Dialog open={showAddExerciseDialog} onOpenChange={setShowAddExerciseDialog}>
             <DialogTrigger asChild>
               <Button>
@@ -286,6 +343,45 @@ export default function PlanDetail() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Section planification récurrente */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Planification automatique
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Sélectionnez les jours où ce plan doit être automatiquement ajouté à votre calendrier chaque semaine.
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {daysOfWeek.map((day) => (
+                <div key={day.value} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`day-${day.value}`}
+                    checked={recurringDays.includes(day.value)}
+                    onCheckedChange={() => handleToggleDay(day.value)}
+                  />
+                  <Label
+                    htmlFor={`day-${day.value}`}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    {day.label}
+                  </Label>
+                </div>
+              ))}
+            </div>
+            {recurringDays.length > 0 && (
+              <div className="flex items-center gap-2 pt-2">
+                <Badge variant="secondary">
+                  Planifié {recurringDays.length} jour{recurringDays.length > 1 ? "s" : ""} par semaine
+                </Badge>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {planExercises.length === 0 ? (
           <Card className="border-dashed">

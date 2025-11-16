@@ -392,6 +392,7 @@ export type Database = {
           id: number
           name: string
           notes: string | null
+          recurring_days: Json | null
           user_id: string
         }
         Insert: {
@@ -400,6 +401,7 @@ export type Database = {
           id?: number
           name: string
           notes?: string | null
+          recurring_days?: Json | null
           user_id: string
         }
         Update: {
@@ -408,6 +410,7 @@ export type Database = {
           id?: number
           name?: string
           notes?: string | null
+          recurring_days?: Json | null
           user_id?: string
         }
         Relationships: []

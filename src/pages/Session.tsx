@@ -24,6 +24,7 @@ export default function Session() {
   const [currentExerciseIndexInSuperset, setCurrentExerciseIndexInSuperset] = useState(0);
   const [currentSetNumber, setCurrentSetNumber] = useState(1);
   const [showRestTimer, setShowRestTimer] = useState(false);
+  const [hasAutoStartedTimer, setHasAutoStartedTimer] = useState(false);
 
   // Charger la session en cours avec les infos de décharge
   const { data: currentSession, isLoading } = useQuery({
@@ -236,7 +237,7 @@ export default function Session() {
   
   // Gérer l'avancement automatique après ajout d'une série
   useEffect(() => {
-    if (!currentExercise || showRestTimer) return;
+    if (!currentExercise || showRestTimer || !hasAutoStartedTimer) return;
     
     const completedSets = sessionSets.filter(s => s.template_exercise_id === currentExercise.id).length;
     
@@ -272,14 +273,16 @@ export default function Session() {
     if (currentSetNumber < targetSets) {
       // Il reste des séries à faire : démarrer le timer inter-série
       setShowRestTimer(true);
+      setHasAutoStartedTimer(true);
     } else {
       // Toutes les séries sont complétées : démarrer le timer inter-superset si pas le dernier
       if (currentSupersetIndex < supersetKeys.length - 1) {
         setShowRestTimer(true);
+        setHasAutoStartedTimer(true);
       }
       // Sinon, areAllSupersetsComplete sera true et affichera le bouton de fin
     }
-  }, [sessionSets, currentExercise, currentExerciseIndexInSuperset, currentSupersetExercises, showRestTimer, currentSetNumber, currentSupersetIndex, supersetKeys.length]);
+  }, [sessionSets, currentExercise, currentExerciseIndexInSuperset, currentSupersetExercises, showRestTimer, currentSetNumber, currentSupersetIndex, supersetKeys.length, hasAutoStartedTimer]);
   
   // Gérer la fin du timer de repos (inter-série ou inter-superset)
   const handleRestComplete = () => {

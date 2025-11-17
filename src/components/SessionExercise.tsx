@@ -44,6 +44,7 @@ export default function SessionExercise({
   const [showAddSet, setShowAddSet] = useState(false);
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [aiAdvice, setAiAdvice] = useState<string>("");
+  const [editingSetId, setEditingSetId] = useState<number | null>(null);
 
   // Calculer les cibles effectives (normales ou décharge)
   const effectiveTargets = isDeload 
@@ -133,49 +134,71 @@ export default function SessionExercise({
     }
   });
 
-  // Mutation pour ajouter un set
+  // Mutation pour ajouter ou mettre à jour un set
   const addSetMutation = useMutation({
     mutationFn: async () => {
-      const setIndex = sessionSets.length;
-      
-      const { error } = await supabase
-        .from("session_sets")
-        .insert([{
-          session_id: sessionId,
-          exercise_id: templateExercise.exercise_id,
-          template_exercise_id: templateExercise.id,
-          set_index: setIndex,
-          reps: templateExercise.exercises.measurement_type === 'time' ? 1 : setForm.reps,
-          time_seconds: templateExercise.exercises.measurement_type === 'time' ? setForm.time_seconds : null,
-          weight_kg: setForm.weight_kg,
-          perceived_difficulty: setForm.perceived_difficulty,
-          pain: setForm.pain ? 1 : 0,
-          pain_notes: setForm.pain ? setForm.pain_notes : null,
-          is_warmup: setForm.is_warmup ? 1 : 0
-        }]);
-      
-      if (error) throw error;
+      if (editingSetId) {
+        // Mise à jour d'un set existant
+        const { error } = await supabase
+          .from("session_sets")
+          .update({
+            reps: templateExercise.exercises.measurement_type === 'time' ? 1 : setForm.reps,
+            time_seconds: templateExercise.exercises.measurement_type === 'time' ? setForm.time_seconds : null,
+            weight_kg: setForm.weight_kg,
+            perceived_difficulty: setForm.perceived_difficulty,
+            pain: setForm.pain ? 1 : 0,
+            pain_notes: setForm.pain ? setForm.pain_notes : null,
+            is_warmup: setForm.is_warmup ? 1 : 0
+          })
+          .eq("id", editingSetId);
+        
+        if (error) throw error;
+      } else {
+        // Ajout d'un nouveau set
+        const setIndex = sessionSets.length;
+        
+        const { error } = await supabase
+          .from("session_sets")
+          .insert([{
+            session_id: sessionId,
+            exercise_id: templateExercise.exercise_id,
+            template_exercise_id: templateExercise.id,
+            set_index: setIndex,
+            reps: templateExercise.exercises.measurement_type === 'time' ? 1 : setForm.reps,
+            time_seconds: templateExercise.exercises.measurement_type === 'time' ? setForm.time_seconds : null,
+            weight_kg: setForm.weight_kg,
+            perceived_difficulty: setForm.perceived_difficulty,
+            pain: setForm.pain ? 1 : 0,
+            pain_notes: setForm.pain ? setForm.pain_notes : null,
+            is_warmup: setForm.is_warmup ? 1 : 0
+          }]);
+        
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["session_sets"] });
-      toast({ title: "Set enregistré" });
+      toast({ title: editingSetId ? "Set modifié" : "Set enregistré" });
       
-      // Préremplir avec les valeurs du set qui vient d'être enregistré
-      setSetForm(prev => ({
-        ...prev,
-        reps: setForm.reps,
-        time_seconds: setForm.time_seconds,
-        weight_kg: setForm.weight_kg,
-        perceived_difficulty: setForm.perceived_difficulty,
-        pain: false,
-        pain_notes: "",
-        is_warmup: false
-      }));
+      if (!editingSetId) {
+        // Préremplir avec les valeurs du set qui vient d'être enregistré
+        setSetForm(prev => ({
+          ...prev,
+          reps: setForm.reps,
+          time_seconds: setForm.time_seconds,
+          weight_kg: setForm.weight_kg,
+          perceived_difficulty: setForm.perceived_difficulty,
+          pain: false,
+          pain_notes: "",
+          is_warmup: false
+        }));
+      }
       
+      setEditingSetId(null);
       setShowAddSet(false);
       
-      // Démarrer le minuteur de repos si ce n'est pas un échauffement
-      if (!setForm.is_warmup) {
+      // Démarrer le minuteur de repos si ce n'est pas un échauffement et qu'on ajoute un nouveau set
+      if (!editingSetId && !setForm.is_warmup) {
         setShowRestTimer(true);
       }
     }
@@ -261,12 +284,6 @@ export default function SessionExercise({
         </Card>
       )}
 
-      {/* Conseil IA */}
-      {aiAdvice && (
-        <div className="p-3 bg-accent/20 rounded-lg border border-accent">
-          <p className="text-sm"><strong>Coach IA :</strong> {aiAdvice}</p>
-        </div>
-      )}
 
       {/* Sets réalisés */}
       {sessionSets.length > 0 && (
@@ -283,6 +300,26 @@ export default function SessionExercise({
               <span className="text-muted-foreground">• Difficulté {set.perceived_difficulty}/10</span>
               {set.pain === 1 && <AlertCircle className="h-4 w-4 text-destructive" />}
               {set.is_warmup === 1 && <span className="text-xs text-muted-foreground">(Échauffement)</span>}
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={() => {
+                  setEditingSetId(set.id);
+                  setSetForm({
+                    reps: set.reps,
+                    time_seconds: set.time_seconds || 0,
+                    weight_kg: Number(set.weight_kg),
+                    perceived_difficulty: set.perceived_difficulty || 7,
+                    pain: set.pain === 1,
+                    pain_notes: set.pain_notes || "",
+                    is_warmup: set.is_warmup === 1
+                  });
+                  setShowAddSet(true);
+                }}
+                className="ml-auto"
+              >
+                Modifier
+              </Button>
             </div>
           ))}
         </div>
@@ -318,9 +355,10 @@ export default function SessionExercise({
             </Button>
           </>
         ) : (
+          /* Formulaire d'ajout/modification de set */
           <Card className="w-full">
             <CardHeader>
-              <CardTitle className="text-lg">Nouveau set</CardTitle>
+              <CardTitle className="text-base">{editingSetId ? "Modifier le set" : "Nouveau set"}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -429,10 +467,13 @@ export default function SessionExercise({
                   disabled={addSetMutation.isPending}
                   className="flex-1"
                 >
-                  Enregistrer le set
+                  {editingSetId ? "Enregistrer" : "Valider le set"}
                 </Button>
                 <Button 
-                  onClick={() => setShowAddSet(false)} 
+                  onClick={() => {
+                    setShowAddSet(false);
+                    setEditingSetId(null);
+                  }} 
                   variant="outline"
                 >
                   Annuler

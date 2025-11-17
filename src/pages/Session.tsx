@@ -270,30 +270,36 @@ export default function Session() {
     const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));
     
     if (currentSetNumber < targetSets) {
-      // Il reste des séries à faire : démarrer le timer inter-superset
+      // Il reste des séries à faire : démarrer le timer inter-série
       setShowRestTimer(true);
     } else {
-      // Toutes les séries sont complétées : passer au superset suivant
+      // Toutes les séries sont complétées : démarrer le timer inter-superset si pas le dernier
       if (currentSupersetIndex < supersetKeys.length - 1) {
-        setCurrentSupersetIndex(prev => prev + 1);
-        setCurrentExerciseIndexInSuperset(0);
-        setCurrentSetNumber(1);
-        // Démarrer le timer avec le temps du superset SUIVANT
-        const nextSuperset = supersetKeys[currentSupersetIndex + 1];
-        const nextSupersetExercises = supersets[nextSuperset];
-        if (nextSupersetExercises && nextSupersetExercises[0]?.superset_rest_seconds) {
-          setShowRestTimer(true);
-        }
+        setShowRestTimer(true);
       }
       // Sinon, areAllSupersetsComplete sera true et affichera le bouton de fin
     }
   }, [sessionSets, currentExercise, currentExerciseIndexInSuperset, currentSupersetExercises, showRestTimer, currentSetNumber, currentSupersetIndex, supersetKeys.length]);
   
-  // Gérer la fin du timer de repos inter-superset
+  // Gérer la fin du timer de repos (inter-série ou inter-superset)
   const handleRestComplete = () => {
     setShowRestTimer(false);
-    setCurrentExerciseIndexInSuperset(0); // Recommencer au premier exercice du superset
-    setCurrentSetNumber(prev => prev + 1); // Passer à la série suivante
+    
+    // Vérifier si c'est un repos inter-série ou inter-superset
+    const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));
+    
+    if (currentSetNumber < targetSets) {
+      // Repos inter-série : on reste dans le même superset, prochaine série
+      setCurrentExerciseIndexInSuperset(0);
+      setCurrentSetNumber(prev => prev + 1);
+    } else {
+      // Repos inter-superset : on passe au superset suivant
+      if (currentSupersetIndex < supersetKeys.length - 1) {
+        setCurrentSupersetIndex(prev => prev + 1);
+        setCurrentExerciseIndexInSuperset(0);
+        setCurrentSetNumber(1);
+      }
+    }
   };
 
   if (isLoading) {

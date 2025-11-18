@@ -10,8 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, GripVertical, X, Download, Upload } from "lucide-react";
+import { Plus, Pencil, Trash2, GripVertical, X, Download, Upload, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import AIWeekPlanWizard from "@/components/AIWeekPlanWizard";
 
 export default function Plans() {
   const { toast } = useToast();
@@ -26,6 +27,7 @@ export default function Plans() {
   const [renamePlanName, setRenamePlanName] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [showAIWizard, setShowAIWizard] = useState(false);
 
   // Charger les plans
   const { data: plans = [] } = useQuery({
@@ -226,6 +228,14 @@ export default function Plans() {
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Mes Plans d'Entraînement</h1>
           <div className="flex gap-2">
+            <Button 
+              onClick={() => setShowAIWizard(true)}
+              className="bg-gradient-to-r from-primary to-primary/80"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              Générer ma semaine avec l'IA
+            </Button>
+            
             <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
               <DialogTrigger asChild>
                 <Button variant="outline">
@@ -425,6 +435,11 @@ export default function Plans() {
           </div>
         )}
       </div>
+
+      <AIWeekPlanWizard 
+        open={showAIWizard} 
+        onOpenChange={setShowAIWizard}
+      />
     </Layout>
   );
 }

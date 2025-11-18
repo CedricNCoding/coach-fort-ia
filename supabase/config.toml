@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.auto-schedule-workouts]
 verify_jwt = false
+
+[functions.ai-generate-week-plan]
+verify_jwt = true

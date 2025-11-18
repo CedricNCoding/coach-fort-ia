@@ -175,33 +175,64 @@ export default function AIWeekPlanWizard({ open, onOpenChange }: AIWeekPlanWizar
         for (let i = 0; i < session.exercises.length; i++) {
           const ex = session.exercises[i];
 
-          // Vérifier si l'exercice existe déjà
-          const { data: existingExercise } = await supabase
+          // Vérifier si l'exercice existe déjà (recherche exacte insensible à la casse)
+          const { data: existingExercises, error: searchError } = await supabase
             .from("exercises")
             .select("id")
             .ilike("name", ex.name)
-            .or(`user_id.eq.${user.id},is_builtin.eq.1`)
-            .single();
+            .or(`user_id.eq.${user.id},is_builtin.eq.1`);
 
-          let exerciseId = existingExercise?.id;
+          if (searchError) {
+            console.error('Erreur recherche exercice:', searchError);
+            throw searchError;
+          }
+
+          let exerciseId = existingExercises && existingExercises.length > 0 
+            ? existingExercises[0].id 
+            : null;
 
           // Si l'exercice n'existe pas, le créer
           if (!exerciseId) {
-            const { data: newExercise, error: exerciseError } = await supabase
-              .from("exercises")
-              .insert({
-                user_id: user.id,
-                name: ex.name,
-                muscle_group: ex.muscle_group,
-                measurement_type: ex.measurement_type || 'reps',
-                default_rest_seconds: ex.rest_seconds || 90,
-                is_builtin: 0
-              })
-              .select()
-              .single();
+            try {
+              const { data: newExercise, error: exerciseError } = await supabase
+                .from("exercises")
+                .insert({
+                  user_id: user.id,
+                  name: ex.name,
+                  muscle_group: ex.muscle_group,
+                  measurement_type: ex.measurement_type || 'reps',
+                  default_rest_seconds: ex.rest_seconds || 90,
+                  is_builtin: 0
+                })
+                .select()
+                .single();
 
-            if (exerciseError) throw exerciseError;
-            exerciseId = newExercise.id;
+              if (exerciseError) {
+                // Si l'exercice existe déjà (erreur de contrainte), le rechercher à nouveau
+                if (exerciseError.code === '23505') { // Contrainte unique violée
+                  console.log('Exercice déjà créé, recherche...');
+                  const { data: retryExercise } = await supabase
+                    .from("exercises")
+                    .select("id")
+                    .eq("user_id", user.id)
+                    .ilike("name", ex.name)
+                    .single();
+                  
+                  if (retryExercise) {
+                    exerciseId = retryExercise.id;
+                  } else {
+                    throw exerciseError;
+                  }
+                } else {
+                  throw exerciseError;
+                }
+              } else {
+                exerciseId = newExercise!.id;
+              }
+            } catch (err) {
+              console.error('Erreur création exercice:', err);
+              throw err;
+            }
           }
 
           // Créer l'exercice du template

@@ -328,6 +328,51 @@ export type Database = {
           },
         ]
       }
+      user_profiles: {
+        Row: {
+          age: number | null
+          available_days: Json | null
+          constraints: string | null
+          created_at: string | null
+          equipment: string | null
+          goal: string | null
+          id: string
+          level: string | null
+          session_duration_minutes: number | null
+          sessions_per_week: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          age?: number | null
+          available_days?: Json | null
+          constraints?: string | null
+          created_at?: string | null
+          equipment?: string | null
+          goal?: string | null
+          id?: string
+          level?: string | null
+          session_duration_minutes?: number | null
+          sessions_per_week?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          age?: number | null
+          available_days?: Json | null
+          constraints?: string | null
+          created_at?: string | null
+          equipment?: string | null
+          goal?: string | null
+          id?: string
+          level?: string | null
+          session_duration_minutes?: number | null
+          sessions_per_week?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       workout_template_exercises: {
         Row: {
           created_at: string | null

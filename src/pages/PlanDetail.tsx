@@ -18,6 +18,7 @@ import { Loader2 } from "lucide-react";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { SortableExerciseItem } from '@/components/SortableExerciseItem';
+import { SortableSupersetGroup } from '@/components/SortableSupersetGroup';
 
 export default function PlanDetail() {
   const { id } = useParams();
@@ -157,10 +158,9 @@ export default function PlanDetail() {
     }
   });
 
-  // Mutation pour réordonner les exercices
-  const reorderExercisesMutation = useMutation({
+  // Mutation pour réordonner les exercices dans un superset
+  const reorderExercisesInSupersetMutation = useMutation({
     mutationFn: async (exercises: Array<{ id: number; order_index: number }>) => {
-      // Mettre à jour tous les order_index en une seule transaction
       for (const ex of exercises) {
         const { error } = await supabase
           .from("workout_template_exercises")
@@ -171,6 +171,30 @@ export default function PlanDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workout_template_exercises", id] });
+      toast({
+        title: "Ordre mis à jour",
+        description: "L'ordre des exercices a été modifié"
+      });
+    }
+  });
+
+  // Mutation pour réordonner les supersets
+  const reorderSupersetsMutation = useMutation({
+    mutationFn: async (exercises: Array<{ id: number; order_index: number }>) => {
+      for (const ex of exercises) {
+        const { error } = await supabase
+          .from("workout_template_exercises")
+          .update({ order_index: ex.order_index })
+          .eq("id", ex.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workout_template_exercises", id] });
+      toast({
+        title: "Ordre mis à jour",
+        description: "L'ordre des supersets a été modifié"
+      });
     }
   });
 
@@ -182,26 +206,53 @@ export default function PlanDetail() {
     })
   );
 
-  // Gestion du drag & drop
+  // Gestion du drag & drop des supersets
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = planExercises.findIndex((ex) => ex.id === active.id);
-    const newIndex = planExercises.findIndex((ex) => ex.id === over.id);
-
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const reorderedExercises = arrayMove(planExercises, oldIndex, newIndex);
     
-    // Mettre à jour les order_index
-    const updates = reorderedExercises.map((ex, index) => ({
-      id: ex.id,
-      order_index: index
-    }));
+    if (!over || active.id === over.id) return;
+    
+    // Vérifier si on déplace des supersets (les IDs sont des strings pour les groupes)
+    const isMovingSupersets = typeof active.id === 'string' && typeof over.id === 'string';
+    
+    if (isMovingSupersets) {
+      // Déplacement de supersets entiers
+      const supersetGroups = Object.entries(
+        planExercises.reduce((acc, ex) => {
+          const group = ex.superset_group || `single_${ex.id}`;
+          if (!acc[group]) acc[group] = [];
+          acc[group].push(ex);
+          return acc;
+        }, {} as Record<string, any[]>)
+      );
+      
+      const oldIndex = supersetGroups.findIndex(([group]) => group === active.id);
+      const newIndex = supersetGroups.findIndex(([group]) => group === over.id);
+      
+      if (oldIndex === -1 || newIndex === -1) return;
+      
+      const reorderedGroups = arrayMove(supersetGroups, oldIndex, newIndex);
+      
+      // Reconstruire la liste plate avec les nouveaux order_index
+      const reorderedExercises = reorderedGroups.flatMap(([_, exercises]) => exercises);
+      const exercisesWithNewOrder = reorderedExercises.map((ex, idx) => ({
+        id: ex.id,
+        order_index: idx
+      }));
+      
+      reorderSupersetsMutation.mutate(exercisesWithNewOrder);
+    }
+  };
 
-    reorderExercisesMutation.mutate(updates);
+  const handleReorderExercisesInSuperset = (supersetExercises: any[]) => {
+    // Garder les order_index relatifs entre exercices du même superset
+    const minOrderIndex = Math.min(...supersetExercises.map(ex => ex.order_index));
+    const exercisesWithNewOrder = supersetExercises.map((ex, idx) => ({
+      id: ex.id,
+      order_index: minOrderIndex + idx
+    }));
+    
+    reorderExercisesInSupersetMutation.mutate(exercisesWithNewOrder);
   };
 
   // Mutation mise à jour exercice
@@ -704,50 +755,19 @@ export default function PlanDetail() {
             onDragEnd={handleDragEnd}
           >
             <SortableContext 
-              items={planExercises.map(ex => ex.id)}
+              items={Object.keys(groupedExercises)}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-4">
                 {Object.entries(groupedExercises).map(([group, exercises]) => (
-                  <Card key={group} className={exercises.length > 1 ? "border-l-4 border-l-accent" : ""}>
-                    <CardHeader>
-                      {exercises.length > 1 && (
-                        <div className="space-y-3">
-                          <Badge variant="secondary" className="w-fit">
-                            Superset {exercises[0].superset_group}
-                          </Badge>
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Repos superset (s)</Label>
-                            <Input
-                              type="number"
-                              value={exercises[0].superset_rest_seconds || 120}
-                              onChange={(e) => {
-                                const newValue = parseInt(e.target.value);
-                                // Mettre à jour tous les exercices du superset
-                                exercises.forEach(ex => {
-                                  updateExerciseMutation.mutate({
-                                    exerciseId: ex.id,
-                                    updates: { superset_rest_seconds: newValue }
-                                  });
-                                });
-                              }}
-                              className="h-8 w-32"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {exercises.map((ex) => (
-                        <SortableExerciseItem
-                          key={ex.id}
-                          ex={ex}
-                          updateExerciseMutation={updateExerciseMutation}
-                          deleteExerciseMutation={deleteExerciseMutation}
-                        />
-                      ))}
-                    </CardContent>
-                  </Card>
+                  <SortableSupersetGroup
+                    key={group}
+                    supersetGroup={group}
+                    exercises={exercises}
+                    updateExerciseMutation={updateExerciseMutation}
+                    deleteExerciseMutation={deleteExerciseMutation}
+                    onReorderExercises={handleReorderExercisesInSuperset}
+                  />
                 ))}
               </div>
             </SortableContext>

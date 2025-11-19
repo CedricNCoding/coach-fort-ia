@@ -161,8 +161,8 @@ export default function AIWeekPlanWizard({ open, onOpenChange }: AIWeekPlanWizar
           .from("workout_templates")
           .insert({
             user_id: user.id,
-            name: session.name,
-            goal: session.goal,
+            name: session.name.substring(0, 50),
+            goal: session.goal?.substring(0, 50),
             notes: session.notes,
             recurring_days: [session.day_of_week]
           })
@@ -198,9 +198,9 @@ export default function AIWeekPlanWizard({ open, onOpenChange }: AIWeekPlanWizar
                 .from("exercises")
                 .insert({
                   user_id: user.id,
-                  name: ex.name,
-                  muscle_group: ex.muscle_group,
-                  measurement_type: ex.measurement_type || 'reps',
+                  name: ex.name.substring(0, 50),
+                  muscle_group: ex.muscle_group?.substring(0, 50),
+                  measurement_type: (ex.measurement_type || 'reps').substring(0, 50),
                   default_rest_seconds: ex.rest_seconds || 90,
                   is_builtin: 0
                 })
@@ -242,7 +242,7 @@ export default function AIWeekPlanWizard({ open, onOpenChange }: AIWeekPlanWizar
               workout_template_id: template.id,
               exercise_id: exerciseId,
               order_index: i,
-              superset_group: ex.superset_group,
+              superset_group: ex.superset_group?.substring(0, 50),
               target_sets: ex.sets,
               target_reps_min: ex.reps_min,
               target_reps_max: ex.reps_max,

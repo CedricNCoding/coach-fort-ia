@@ -1,43 +1,45 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Vérifier l'authentification
-    const authHeader = req.headers.get('Authorization')!;
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
+    const authHeader = req.headers.get("Authorization")!;
+    const token = authHeader.replace("Bearer ", "");
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser(token);
+
     if (userError || !user) {
-      throw new Error('Non autorisé');
+      throw new Error("Non autorisé");
     }
 
     const { profile, stats, exercises } = await req.json();
 
-    console.log('Génération de plan IA pour utilisateur:', user.id);
-    console.log('Profil:', profile);
-    console.log('Stats disponibles:', !!stats);
+    console.log("Génération de plan IA pour utilisateur:", user.id);
+    console.log("Profil:", profile);
+    console.log("Stats disponibles:", !!stats);
 
     // Récupérer les réglages IA de l'utilisateur
-    const { data: aiSettingsArray } = await supabase
-      .rpc('get_user_api_key', { _user_id: user.id });
+    const { data: aiSettingsArray } = await supabase.rpc("get_user_api_key", { _user_id: user.id });
 
     if (!aiSettingsArray || aiSettingsArray.length === 0 || !aiSettingsArray[0].api_key) {
-      throw new Error('Clé API non configurée. Veuillez configurer vos paramètres IA.');
+      throw new Error("Clé API non configurée. Veuillez configurer vos paramètres IA.");
     }
 
     const aiSettings = aiSettingsArray[0];
@@ -80,6 +82,25 @@ Poids cibles :
 - Basés sur l'historique si disponible (pourcentage réaliste des meilleures charges)
 - Sinon, estimation réaliste selon profil (âge, niveau) et type d'exercice
 
+Chaque séance doit obligatoirement contenir 6 supersets numérotés A, B, C, D, E, F, chacun composé de 2 exercices :
+	•	A1 & A2
+	•	B1 & B2
+	•	C1 & C2
+	•	D1 & D2
+	•	E1 & E2
+	•	F1 & F2
+
+Soit 12 exercices par séance, organisés comme suit :
+	•	un seul “A1/A2”, puis “B1/B2”, etc.
+	•	jamais plus de 2 exercices dans le même superset,
+	•	pas de blocs vides,
+	•	pas de superset répété,
+	•	respecter les pairings intelligents (antagonistes ou complémentaires).
+
+Les 6 supersets doivent rester cohérents avec le volume hebdomadaire, l’objectif, le matériel disponible et la récupération (48h sur les groupes lourds).
+
+Les séances doivent toujours tenir en 90–110 minutes maximum et respecter les intensités et repos indiqués.
+
 Réponds STRICTEMENT en JSON valide avec cette structure :
 {
   "sessions": [
@@ -113,9 +134,9 @@ PROFIL :
 - Niveau : ${profile.level}
 - Objectif : ${profile.goal}
 - Séances par semaine : ${profile.sessions_per_week}
-- Jours disponibles : ${profile.available_days.join(', ')}
-- Matériel disponible : ${profile.equipment || 'Non spécifié'}
-- Contraintes/zones sensibles : ${profile.constraints || 'Aucune'}
+- Jours disponibles : ${profile.available_days.join(", ")}
+- Matériel disponible : ${profile.equipment || "Non spécifié"}
+- Contraintes/zones sensibles : ${profile.constraints || "Aucune"}
 - Durée cible par séance : ${profile.session_duration_minutes || 60} minutes
 
 `;
@@ -127,14 +148,12 @@ PROFIL :
 - Volume total moyen/semaine : ${stats.avg_weekly_volume} kg
 
 Exercices utilisés (avec meilleur poids) :
-${stats.exercises_used.map((ex: any) => 
-  `- ${ex.name} (${ex.muscle_group}) : ${ex.best_weight}kg, ${ex.frequency} séances`
-).join('\n')}
+${stats.exercises_used
+  .map((ex: any) => `- ${ex.name} (${ex.muscle_group}) : ${ex.best_weight}kg, ${ex.frequency} séances`)
+  .join("\n")}
 
 Volume par groupe musculaire (séries/semaine) :
-${stats.muscle_group_volumes.map((mg: any) => 
-  `- ${mg.muscle_group} : ${mg.avg_weekly_sets} séries`
-).join('\n')}
+${stats.muscle_group_volumes.map((mg: any) => `- ${mg.muscle_group} : ${mg.avg_weekly_sets} séries`).join("\n")}
 
 `;
     } else {
@@ -145,57 +164,54 @@ ${stats.muscle_group_volumes.map((mg: any) =>
 
     // Ajouter la liste des exercices disponibles
     userPrompt += `EXERCICES DISPONIBLES DANS LA BIBLIOTHÈQUE :
-${exercises.map((ex: any) => 
-  `- ${ex.name} (${ex.muscle_group}, ${ex.measurement_type})`
-).join('\n')}
+${exercises.map((ex: any) => `- ${ex.name} (${ex.muscle_group}, ${ex.measurement_type})`).join("\n")}
 
-Génère maintenant ${profile.sessions_per_week} séances cohérentes entre elles, en respectant les jours disponibles (${profile.available_days.join(', ')}).`;
+Génère maintenant ${profile.sessions_per_week} séances cohérentes entre elles, en respectant les jours disponibles (${profile.available_days.join(", ")}).`;
 
-    console.log('Appel à l\'API OpenAI...');
+    console.log("Appel à l'API OpenAI...");
 
     // Appeler l'API OpenAI
     const response = await fetch(aiSettings.base_url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${aiSettings.api_key}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${aiSettings.api_key}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: aiSettings.model_name || 'gpt-4.1-mini',
+        model: aiSettings.model_name || "gpt-4.1-mini",
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
         ],
         temperature: 0.7,
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Erreur API OpenAI:', response.status, errorText);
+      console.error("Erreur API OpenAI:", response.status, errorText);
       throw new Error(`Erreur API: ${response.status}`);
     }
 
     const data = await response.json();
     const generatedPlan = JSON.parse(data.choices[0].message.content);
 
-    console.log('Plan généré avec succès:', generatedPlan.sessions.length, 'séances');
+    console.log("Plan généré avec succès:", generatedPlan.sessions.length, "séances");
 
     return new Response(JSON.stringify({ plan: generatedPlan }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-
   } catch (error) {
-    console.error('Erreur dans ai-generate-week-plan:', error);
+    console.error("Erreur dans ai-generate-week-plan:", error);
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Erreur inconnue' 
-      }), 
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Erreur inconnue",
+      }),
       {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });

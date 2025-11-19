@@ -10,11 +10,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, ArrowLeft, Trash2, GripVertical, Download, Calendar, Brain, CheckCircle2, AlertCircle, Lightbulb, TrendingUp, Pencil } from "lucide-react";
+import { Plus, ArrowLeft, Trash2, Download, Calendar, Brain, CheckCircle2, AlertCircle, Lightbulb, TrendingUp, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableExerciseItem } from '@/components/SortableExerciseItem';
 
 export default function PlanDetail() {
   const { id } = useParams();
@@ -153,6 +156,53 @@ export default function PlanDetail() {
       toast({ title: "Exercice retiré du plan" });
     }
   });
+
+  // Mutation pour réordonner les exercices
+  const reorderExercisesMutation = useMutation({
+    mutationFn: async (exercises: Array<{ id: number; order_index: number }>) => {
+      // Mettre à jour tous les order_index en une seule transaction
+      for (const ex of exercises) {
+        const { error } = await supabase
+          .from("workout_template_exercises")
+          .update({ order_index: ex.order_index })
+          .eq("id", ex.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workout_template_exercises", id] });
+    }
+  });
+
+  // Configuration des capteurs de drag & drop
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Gestion du drag & drop
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = planExercises.findIndex((ex) => ex.id === active.id);
+    const newIndex = planExercises.findIndex((ex) => ex.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reorderedExercises = arrayMove(planExercises, oldIndex, newIndex);
+    
+    // Mettre à jour les order_index
+    const updates = reorderedExercises.map((ex, index) => ({
+      id: ex.id,
+      order_index: index
+    }));
+
+    reorderExercisesMutation.mutate(updates);
+  };
 
   // Mutation mise à jour exercice
   const updateExerciseMutation = useMutation({
@@ -648,142 +698,60 @@ export default function PlanDetail() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
-            {Object.entries(groupedExercises).map(([group, exercises]) => (
-              <Card key={group} className={exercises.length > 1 ? "border-l-4 border-l-accent" : ""}>
-                <CardHeader>
-                  {exercises.length > 1 && (
-                    <div className="space-y-3">
-                      <Badge variant="secondary" className="w-fit">
-                        Superset {exercises[0].superset_group}
-                      </Badge>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Repos superset (s)</Label>
-                        <Input
-                          type="number"
-                          value={exercises[0].superset_rest_seconds || 120}
-                          onChange={(e) => {
-                            const newValue = parseInt(e.target.value);
-                            // Mettre à jour tous les exercices du superset
-                            exercises.forEach(ex => {
-                              updateExerciseMutation.mutate({
-                                exerciseId: ex.id,
-                                updates: { superset_rest_seconds: newValue }
-                              });
-                            });
-                          }}
-                          className="h-8 w-32"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-3">
-                   {exercises.map((ex, idx) => (
-                    <div key={ex.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                      <GripVertical className="h-5 w-5 text-muted-foreground mt-1 shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <div className="font-medium">{ex.exercise?.name}</div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <DndContext 
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext 
+              items={planExercises.map(ex => ex.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-4">
+                {Object.entries(groupedExercises).map(([group, exercises]) => (
+                  <Card key={group} className={exercises.length > 1 ? "border-l-4 border-l-accent" : ""}>
+                    <CardHeader>
+                      {exercises.length > 1 && (
+                        <div className="space-y-3">
+                          <Badge variant="secondary" className="w-fit">
+                            Superset {exercises[0].superset_group}
+                          </Badge>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Séries</Label>
+                            <Label className="text-xs text-muted-foreground">Repos superset (s)</Label>
                             <Input
                               type="number"
-                              value={ex.target_sets || 3}
-                              onChange={(e) => updateExerciseMutation.mutate({
-                                exerciseId: ex.id,
-                                updates: { target_sets: parseInt(e.target.value) }
-                              })}
-                              className="h-8"
-                            />
-                          </div>
-                          {ex.exercise?.measurement_type === 'time' ? (
-                            <div className="space-y-1">
-                              <Label className="text-xs text-muted-foreground">Temps (s)</Label>
-                              <Input
-                                type="number"
-                                value={ex.target_time_seconds || ""}
-                                placeholder="Ex: 60"
-                                onChange={(e) => updateExerciseMutation.mutate({
-                                  exerciseId: ex.id,
-                                  updates: { target_time_seconds: parseInt(e.target.value) || null }
-                                })}
-                                className="h-8"
-                              />
-                            </div>
-                          ) : (
-                            <div className="space-y-1">
-                              <Label className="text-xs text-muted-foreground">Reps</Label>
-                              <div className="flex gap-1 items-center">
-                                <Input
-                                  type="number"
-                                  value={ex.target_reps_min || 6}
-                                  onChange={(e) => updateExerciseMutation.mutate({
+                              value={exercises[0].superset_rest_seconds || 120}
+                              onChange={(e) => {
+                                const newValue = parseInt(e.target.value);
+                                // Mettre à jour tous les exercices du superset
+                                exercises.forEach(ex => {
+                                  updateExerciseMutation.mutate({
                                     exerciseId: ex.id,
-                                    updates: { target_reps_min: parseInt(e.target.value) }
-                                  })}
-                                  className="h-8 w-14"
-                                />
-                                <span className="text-xs">-</span>
-                                <Input
-                                  type="number"
-                                  value={ex.target_reps_max || 12}
-                                  onChange={(e) => updateExerciseMutation.mutate({
-                                    exerciseId: ex.id,
-                                    updates: { target_reps_max: parseInt(e.target.value) }
-                                  })}
-                                  className="h-8 w-14"
-                                />
-                              </div>
-                            </div>
-                          )}
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Charge (kg)</Label>
-                            <Input
-                              type="number"
-                              step="0.5"
-                              value={ex.target_weight_kg || ""}
-                              placeholder="Ex: 20"
-                              onChange={(e) => updateExerciseMutation.mutate({
-                                exerciseId: ex.id,
-                                updates: { target_weight_kg: parseFloat(e.target.value) || null }
-                              })}
-                              className="h-8"
-                            />
-                            {ex.next_target_weight_kg && (
-                              <div className="text-xs text-primary font-medium">
-                                → {ex.next_target_weight_kg} kg
-                              </div>
-                            )}
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Repos (s)</Label>
-                            <Input
-                              type="number"
-                              value={ex.target_rest_seconds || 90}
-                              onChange={(e) => updateExerciseMutation.mutate({
-                                exerciseId: ex.id,
-                                updates: { target_rest_seconds: parseInt(e.target.value) }
-                              })}
-                              className="h-8"
+                                    updates: { superset_rest_seconds: newValue }
+                                  });
+                                });
+                              }}
+                              className="h-8 w-32"
                             />
                           </div>
                         </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive shrink-0"
-                        onClick={() => deleteExerciseMutation.mutate(ex.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {exercises.map((ex) => (
+                        <SortableExerciseItem
+                          key={ex.id}
+                          ex={ex}
+                          updateExerciseMutation={updateExerciseMutation}
+                          deleteExerciseMutation={deleteExerciseMutation}
+                        />
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
     </Layout>

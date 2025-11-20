@@ -230,6 +230,18 @@ export default function SessionExercise({
         <p className="text-sm text-muted-foreground">
           {templateExercise.exercises.muscle_group} • {templateExercise.exercises.equipment}
         </p>
+        {templateExercise.exercises.video_url && (
+          <div className="mt-2">
+            <a 
+              href={templateExercise.exercises.video_url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+            >
+              🎥 Voir la vidéo de démonstration
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Conseil IA */}

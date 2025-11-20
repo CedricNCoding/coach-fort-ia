@@ -202,6 +202,7 @@ export default function AIWeekPlanWizard({ open, onOpenChange }: AIWeekPlanWizar
                   muscle_group: ex.muscle_group?.substring(0, 50),
                   measurement_type: (ex.measurement_type || 'reps').substring(0, 50),
                   default_rest_seconds: ex.rest_seconds || 90,
+                  video_url: ex.video_url || null,
                   is_builtin: 0
                 })
                 .select()

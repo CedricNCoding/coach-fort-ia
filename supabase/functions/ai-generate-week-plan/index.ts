@@ -119,12 +119,15 @@ Réponds STRICTEMENT en JSON valide avec cette structure :
           "rest_seconds": 90,
           "superset_group": "A1",
           "measurement_type": "reps",
-          "weight_kg": 60
+          "weight_kg": 60,
+          "video_url": "URL YouTube complète d'une vidéo démonstration de l'exercice (obligatoire)"
         }
       ]
     }
   ]
-}`;
+}
+
+IMPORTANT : Pour chaque exercice, tu DOIS trouver et fournir une URL YouTube de démonstration valide. Cherche des vidéos de qualité en français si possible, sinon en anglais. L'URL doit être complète (ex: https://www.youtube.com/watch?v=...).`;
 
     // Construire le prompt utilisateur avec toutes les données
     let userPrompt = `Génère un programme d'entraînement hebdomadaire personnalisé.

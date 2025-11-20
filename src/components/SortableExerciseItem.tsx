@@ -41,7 +41,19 @@ export function SortableExerciseItem({ ex, updateExerciseMutation, deleteExercis
         <GripVertical className="h-5 w-5 text-muted-foreground mt-1 shrink-0" />
       </div>
       <div className="flex-1 space-y-2">
-        <div className="font-medium">{ex.exercise?.name}</div>
+        <div>
+          <div className="font-medium">{ex.exercise?.name}</div>
+          {ex.exercise?.video_url && (
+            <a 
+              href={ex.exercise.video_url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1"
+            >
+              🎥 Vidéo
+            </a>
+          )}
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Séries</Label>

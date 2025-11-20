@@ -217,14 +217,20 @@ export default function PlanDetail() {
     
     if (isMovingSupersets) {
       // Déplacement de supersets entiers
-      const supersetGroups = Object.entries(
-        planExercises.reduce((acc, ex) => {
-          const group = ex.superset_group || `single_${ex.id}`;
-          if (!acc[group]) acc[group] = [];
-          acc[group].push(ex);
-          return acc;
-        }, {} as Record<string, any[]>)
-      );
+      // D'abord, trier tous les exercices par order_index
+      const sortedExercises = [...planExercises].sort((a, b) => a.order_index - b.order_index);
+      
+      // Grouper les exercices triés
+      const groupedExercises = sortedExercises.reduce((acc, ex) => {
+        const group = ex.superset_group || `single_${ex.id}`;
+        if (!acc[group]) acc[group] = [];
+        acc[group].push(ex);
+        return acc;
+      }, {} as Record<string, any[]>);
+      
+      // Créer un tableau de groupes trié par le order_index minimum de chaque groupe
+      const supersetGroups = Object.entries(groupedExercises)
+        .sort(([, exsA], [, exsB]) => exsA[0].order_index - exsB[0].order_index);
       
       const oldIndex = supersetGroups.findIndex(([group]) => group === active.id);
       const newIndex = supersetGroups.findIndex(([group]) => group === over.id);

@@ -12,7 +12,6 @@ interface RestTimerProps {
 
 export default function RestTimer({ targetSeconds, onComplete, autoStart = false, onCancel }: RestTimerProps) {
   const [timeLeft, setTimeLeft] = useState(targetSeconds);
-  const [isPaused, setIsPaused] = useState(false);
   const [isVisible, setIsVisible] = useState(autoStart);
   const intervalRef = useRef<number | null>(null);
   const completedRef = useRef(false);
@@ -26,13 +25,12 @@ useEffect(() => {
   completedRef.current = false;
   endTimeRef.current = autoStart ? Date.now() + targetSeconds * 1000 : null;
   setTimeLeft(targetSeconds);
-  setIsPaused(false);
   setIsVisible(autoStart);
 }, [targetSeconds, autoStart]);
 
 useEffect(() => {
-  // Si le timer est en pause, invisible ou déjà terminé, on stoppe tout
-  if (isPaused || !isVisible || timeLeft <= 0) {
+  // Si le timer est invisible ou déjà terminé, on stoppe tout
+  if (!isVisible || timeLeft <= 0) {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -72,7 +70,7 @@ useEffect(() => {
       intervalRef.current = null;
     }
   };
-}, [isPaused, isVisible, onComplete]);
+}, [isVisible, onComplete]);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -108,28 +106,8 @@ useEffect(() => {
           </Button>
         </div>
         
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-center mb-2">
           <span className="text-3xl font-mono font-bold">{formatTime(timeLeft)}</span>
-          <Button 
-            onClick={() => {
-              setIsPaused((prev) => {
-                const next = !prev;
-                if (next) {
-                  // Mise en pause: geler le temps restant
-                  if (intervalRef.current) {
-                    clearInterval(intervalRef.current);
-                    intervalRef.current = null;
-                  }
-                  endTimeRef.current = null;
-                }
-                return next;
-              });
-            }} 
-            variant="outline"
-            size="sm"
-          >
-            {isPaused ? "Reprendre" : "Pause"}
-          </Button>
         </div>
 
         <div className="h-2 bg-muted rounded-full overflow-hidden">

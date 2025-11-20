@@ -198,6 +198,9 @@ export default function PlanDetail() {
     }
   });
 
+  const getSupersetGroupId = (ex: any) =>
+    ex.superset_group ? `group_${ex.superset_group}` : `single_${ex.id}`;
+
   // Configuration des capteurs de drag & drop
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -408,6 +411,11 @@ export default function PlanDetail() {
     acc[group].push(ex);
     return acc;
   }, {} as Record<string, typeof planExercises>);
+
+  // Créer une liste ordonnée de groupes basée sur order_index
+  const supersetGroupEntries = Object.entries(groupedExercises).sort(
+    ([, exsA], [, exsB]) => exsA[0].order_index - exsB[0].order_index
+  );
 
   return (
     <Layout>
@@ -761,11 +769,11 @@ export default function PlanDetail() {
             onDragEnd={handleDragEnd}
           >
             <SortableContext 
-              items={Object.keys(groupedExercises)}
+              items={supersetGroupEntries.map(([group]) => group)}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-4">
-                {Object.entries(groupedExercises).map(([group, exercises]) => (
+                {supersetGroupEntries.map(([group, exercises]) => (
                   <SortableSupersetGroup
                     key={group}
                     supersetGroup={group}

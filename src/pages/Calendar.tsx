@@ -95,22 +95,52 @@ export default function Calendar() {
   const addPlannedWorkoutMutation = useMutation({
     mutationFn: async (data: { date: string; slot: number; template_id: number }) => {
       const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await supabase
+      
+      // Vérifier si le slot est déjà occupé
+      const { data: existing } = await supabase
         .from("planned_workouts")
-        .insert([{
-          user_id: user?.id,
-          date: data.date,
-          slot: data.slot,
-          workout_template_id: data.template_id,
-          status: "planned"
-        }]);
-      if (error) throw error;
+        .select("id")
+        .eq("user_id", user?.id)
+        .eq("date", data.date)
+        .eq("slot", data.slot)
+        .single();
+
+      if (existing) {
+        // Remplacer la séance existante
+        const { error } = await supabase
+          .from("planned_workouts")
+          .update({
+            workout_template_id: data.template_id,
+            status: "planned"
+          })
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        // Créer une nouvelle séance
+        const { error } = await supabase
+          .from("planned_workouts")
+          .insert([{
+            user_id: user?.id,
+            date: data.date,
+            slot: data.slot,
+            workout_template_id: data.template_id,
+            status: "planned"
+          }]);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["planned_workouts"] });
       toast({ title: "Séance planifiée" });
       setShowPlanDialog(false);
       setSelectedPlanId("");
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: error.message || "Impossible de planifier la séance"
+      });
     }
   });
 

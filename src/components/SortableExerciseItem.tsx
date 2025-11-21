@@ -46,9 +46,11 @@ export function SortableExerciseItem({ ex, updateExerciseMutation, deleteExercis
           {ex.exercise?.video_url && (
             <a 
               href={ex.exercise.video_url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1"
+              onClick={(e) => {
+                e.preventDefault();
+                window.open(ex.exercise.video_url, '_blank', 'noopener,noreferrer');
+              }}
+              className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1 cursor-pointer"
             >
               🎥 Vidéo
             </a>

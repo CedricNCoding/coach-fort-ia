@@ -430,9 +430,11 @@ export default function Exercises() {
                   {exercise.video_url && (
                     <a 
                       href={exercise.video_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline inline-flex items-center gap-1"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        window.open(exercise.video_url, '_blank', 'noopener,noreferrer');
+                      }}
+                      className="text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
                     >
                       🎥 Vidéo de démonstration
                     </a>

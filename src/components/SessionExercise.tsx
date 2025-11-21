@@ -234,9 +234,11 @@ export default function SessionExercise({
           <div className="mt-2">
             <a 
               href={templateExercise.exercises.video_url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+              onClick={(e) => {
+                e.preventDefault();
+                window.open(templateExercise.exercises.video_url, '_blank', 'noopener,noreferrer');
+              }}
+              className="text-sm text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
             >
               🎥 Voir la vidéo de démonstration
             </a>

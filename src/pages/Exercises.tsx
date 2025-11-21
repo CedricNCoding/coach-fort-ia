@@ -28,7 +28,8 @@ export default function Exercises() {
     equipment: "",
     default_rest_seconds: 90,
     notes: "",
-    measurement_type: "reps" as "reps" | "time"
+    measurement_type: "reps" as "reps" | "time",
+    video_url: ""
   });
 
   // Charger les exercices
@@ -101,7 +102,8 @@ export default function Exercises() {
       equipment: "",
       default_rest_seconds: 90,
       notes: "",
-      measurement_type: "reps"
+      measurement_type: "reps",
+      video_url: ""
     });
   };
 
@@ -121,7 +123,8 @@ export default function Exercises() {
       equipment: exercise.equipment || "",
       default_rest_seconds: exercise.default_rest_seconds || 90,
       notes: exercise.notes || "",
-      measurement_type: exercise.measurement_type || "reps"
+      measurement_type: exercise.measurement_type || "reps",
+      video_url: exercise.video_url || ""
     });
     setShowAddDialog(true);
   };
@@ -323,6 +326,14 @@ export default function Exercises() {
                     </Select>
                   </div>
                   <div className="space-y-2">
+                    <Label>Lien vidéo YouTube</Label>
+                    <Input
+                      value={formData.video_url}
+                      onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                      placeholder="https://www.youtube.com/watch?v=..."
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <Label>Notes</Label>
                     <Textarea
                       value={formData.notes}
@@ -416,6 +427,16 @@ export default function Exercises() {
                   <div className="text-muted-foreground">
                     Repos : {exercise.default_rest_seconds}s
                   </div>
+                  {exercise.video_url && (
+                    <a 
+                      href={exercise.video_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      🎥 Vidéo de démonstration
+                    </a>
+                  )}
                   {exercise.is_builtin === 1 && (
                     <div className="inline-block px-2 py-1 text-xs rounded-full bg-primary/10 text-primary">
                       Exercice builtin

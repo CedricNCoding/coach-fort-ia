@@ -434,9 +434,9 @@ export default function Exercises() {
                         e.preventDefault();
                         window.open(exercise.video_url, '_blank', 'noopener,noreferrer');
                       }}
-                      className="text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
+                      className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer text-sm font-medium"
                     >
-                      🎥 Vidéo de démonstration
+                      🎥 Voir la démonstration
                     </a>
                   )}
                   {exercise.is_builtin === 1 && (

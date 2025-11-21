@@ -153,14 +153,33 @@ serve(async (req) => {
 
     if (setsError) throw setsError;
 
-    // Récupérer les template exercises
-    const { data: templateExercises, error: templateError } = await supabaseClient
-      .from('workout_template_exercises')
-      .select('*, exercises(*)')
-      .eq('workout_template_id', session.planned_workouts?.workout_template_id)
-      .eq('is_active', 1);
+    // Récupérer les template exercises (si la session a un template)
+    let templateExercises = [];
+    if (session.planned_workouts?.workout_template_id) {
+      const { data, error: templateError } = await supabaseClient
+        .from('workout_template_exercises')
+        .select('*, exercises(*)')
+        .eq('workout_template_id', session.planned_workouts.workout_template_id)
+        .eq('is_active', 1);
 
-    if (templateError) throw templateError;
+      if (templateError) throw templateError;
+      templateExercises = data || [];
+    }
+    
+    // Si pas de template, retourner un feedback simple
+    if (!session.planned_workouts?.workout_template_id || templateExercises.length === 0) {
+      return new Response(
+        JSON.stringify({
+          feedback_bullets: [
+            "Séance libre complétée !",
+            "Cette séance n'est pas liée à un plan spécifique.",
+            "Continue à t'entraîner régulièrement."
+          ],
+          exercises: []
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Récupérer les paramètres IA décryptés via fonction sécurisée
     const { data: aiSettings, error: aiSettingsError } = await supabaseClient

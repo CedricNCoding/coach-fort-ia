@@ -231,16 +231,16 @@ export default function SessionExercise({
           {templateExercise.exercises.muscle_group} • {templateExercise.exercises.equipment}
         </p>
         {templateExercise.exercises.video_url && (
-          <div className="mt-2">
+          <div className="mt-3">
             <a 
               href={templateExercise.exercises.video_url} 
               onClick={(e) => {
                 e.preventDefault();
                 window.open(templateExercise.exercises.video_url, '_blank', 'noopener,noreferrer');
               }}
-              className="text-sm text-primary hover:underline inline-flex items-center gap-1 cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer text-sm font-medium border border-primary/20"
             >
-              🎥 Voir la vidéo de démonstration
+              🎥 Voir la démonstration vidéo
             </a>
           </div>
         )}

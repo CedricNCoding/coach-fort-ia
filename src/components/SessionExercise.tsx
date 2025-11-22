@@ -2,13 +2,13 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Plus, AlertCircle } from "lucide-react";
+import { Copy, AlertCircle, Flame } from "lucide-react";
 import { calculateDeloadTargets } from "@/lib/deload-utils";
 import RestTimer from "./RestTimer";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -41,7 +41,6 @@ export default function SessionExercise({
 }: SessionExerciseProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [showAddSet, setShowAddSet] = useState(false);
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [aiAdvice, setAiAdvice] = useState<string>("");
   const [editingSetId, setEditingSetId] = useState<number | null>(null);
@@ -192,14 +191,13 @@ export default function SessionExercise({
           pain_notes: "",
           is_warmup: false
         }));
-      }
-      
-      setEditingSetId(null);
-      setShowAddSet(false);
-      
-      // Démarrer le minuteur de repos si ce n'est pas un échauffement et qu'on ajoute un nouveau set
-      if (!editingSetId && !setForm.is_warmup) {
-        setShowRestTimer(true);
+        
+        // Démarrer le minuteur de repos si ce n'est pas un échauffement
+        if (!setForm.is_warmup) {
+          setShowRestTimer(true);
+        }
+      } else {
+        setEditingSetId(null);
       }
     }
   });
@@ -222,8 +220,12 @@ export default function SessionExercise({
   const targetWeight = Number(templateExercise.next_target_weight_kg || templateExercise.target_weight_kg || 0);
   const targetRestSeconds = templateExercise.target_rest_seconds || templateExercise.exercises.default_rest_seconds || 90;
 
+  // Générer les options pour les dropdowns
+  const repsOptions = Array.from({ length: 31 }, (_, i) => i);
+  const weightOptions = Array.from({ length: 301 }, (_, i) => i * 0.5);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* En-tête de l'exercice */}
       <div>
         <h3 className="text-xl font-bold">{templateExercise.exercises.name}</h3>
@@ -249,71 +251,62 @@ export default function SessionExercise({
       {/* Conseil IA */}
       {aiAdvice && (
         <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="pt-4">
-            <p className="text-sm font-medium">💡 {aiAdvice}</p>
+          <CardContent className="pt-3 pb-3">
+            <p className="text-xs font-medium">💡 {aiAdvice}</p>
           </CardContent>
         </Card>
       )}
 
-      {/* Cibles actuelles */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-        <div className="p-2 bg-muted rounded">
-          <p className="text-muted-foreground">Sets</p>
+      {/* Cibles et dernière séance - plus compact */}
+      <div className="grid grid-cols-4 gap-1.5 text-xs">
+        <div className="p-1.5 bg-muted rounded text-center">
+          <p className="text-muted-foreground text-[10px]">Sets</p>
           <p className="font-bold">{templateExercise.target_sets}</p>
         </div>
         {templateExercise.exercises.measurement_type === 'time' ? (
-          <div className="p-2 bg-muted rounded">
-            <p className="text-muted-foreground">Temps</p>
+          <div className="p-1.5 bg-muted rounded text-center">
+            <p className="text-muted-foreground text-[10px]">Temps</p>
             <p className="font-bold">{templateExercise.target_time_seconds}s</p>
           </div>
         ) : (
-          <div className="p-2 bg-muted rounded">
-            <p className="text-muted-foreground">Reps</p>
+          <div className="p-1.5 bg-muted rounded text-center">
+            <p className="text-muted-foreground text-[10px]">Reps</p>
             <p className="font-bold">{templateExercise.target_reps_min}-{templateExercise.target_reps_max}</p>
           </div>
         )}
-        <div className="p-2 bg-muted rounded">
-          <p className="text-muted-foreground">Charge</p>
-          <p className="font-bold">
-            {targetWeight > 0 ? `${targetWeight.toFixed(1)} kg` : "Non définie"}
-          </p>
+        <div className="p-1.5 bg-muted rounded text-center">
+          <p className="text-muted-foreground text-[10px]">Charge</p>
+          <p className="font-bold">{targetWeight > 0 ? `${targetWeight.toFixed(1)}kg` : "-"}</p>
         </div>
-        <div className="p-2 bg-muted rounded">
-          <p className="text-muted-foreground">Repos</p>
+        <div className="p-1.5 bg-muted rounded text-center">
+          <p className="text-muted-foreground text-[10px]">Repos</p>
           <p className="font-bold">{targetRestSeconds}s</p>
         </div>
       </div>
 
-      {/* Dernière séance */}
       {lastSession && (
-        <Card className="bg-muted/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Dernière séance</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            <p>Meilleur set : {lastSession.bestSet.reps} × {Number(lastSession.bestSet.weight_kg).toFixed(1)} kg</p>
-            <p>Tonnage : {lastSession.tonnage.toFixed(1)} kg</p>
-            <p>Difficulté moyenne : {lastSession.avgDifficulty.toFixed(1)}/10</p>
-          </CardContent>
-        </Card>
+        <div className="p-2 bg-muted/50 rounded text-xs space-y-0.5">
+          <p className="font-medium text-[10px] text-muted-foreground">Dernière séance</p>
+          <p>Meilleur : {lastSession.bestSet.reps} × {Number(lastSession.bestSet.weight_kg).toFixed(1)} kg • {lastSession.avgDifficulty.toFixed(1)}/10</p>
+        </div>
       )}
 
 
       {/* Sets réalisés */}
       {sessionSets.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="font-semibold text-sm">Sets réalisés</h4>
+        <div className="space-y-1">
+          <h4 className="font-semibold text-xs text-muted-foreground">Sets réalisés</h4>
           {sessionSets.map((set, idx) => (
-            <div key={set.id} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
-              <span className="font-bold w-8">#{idx + 1}</span>
+            <div key={set.id} className="flex items-center gap-2 text-xs p-1.5 bg-muted rounded">
+              <span className="font-bold w-6">#{idx + 1}</span>
               {templateExercise.exercises.measurement_type === 'time' ? (
-                <span>{set.time_seconds}s × {Number(set.weight_kg).toFixed(1)} kg</span>
+                <span>{set.time_seconds}s × {Number(set.weight_kg).toFixed(1)}kg</span>
               ) : (
-                <span>{set.reps} × {Number(set.weight_kg).toFixed(1)} kg</span>
+                <span>{set.reps} × {Number(set.weight_kg).toFixed(1)}kg</span>
               )}
-              <span className="text-muted-foreground">• Difficulté {set.perceived_difficulty}/10</span>
-              {set.pain === 1 && <AlertCircle className="h-4 w-4 text-destructive" />}
-              {set.is_warmup === 1 && <span className="text-xs text-muted-foreground">(Échauffement)</span>}
+              <span className="text-muted-foreground">• {set.perceived_difficulty}/10</span>
+              {set.pain === 1 && <AlertCircle className="h-3 w-3 text-destructive" />}
+              {set.is_warmup === 1 && <Flame className="h-3 w-3 text-orange-500" />}
               <Button 
                 size="sm" 
                 variant="ghost" 
@@ -328,9 +321,8 @@ export default function SessionExercise({
                     pain_notes: set.pain_notes || "",
                     is_warmup: set.is_warmup === 1
                   });
-                  setShowAddSet(true);
                 }}
-                className="ml-auto"
+                className="ml-auto h-6 text-xs px-2"
               >
                 Modifier
               </Button>
@@ -347,156 +339,184 @@ export default function SessionExercise({
         />
       )}
 
-      {/* Boutons d'action */}
-      <div className="flex gap-2">
-        {!showAddSet ? (
-          <>
-            <Button onClick={() => setShowAddSet(true)} className="flex-1">
-              <Plus className="h-4 w-4 mr-2" />
-              Ajouter un set
+      {/* Formulaire d'enregistrement de set - toujours visible */}
+      <Card className="w-full border-primary/20">
+        <CardContent className="pt-3 pb-3 space-y-2">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-semibold">{editingSetId ? "Modifier le set" : `Set #${sessionSets.length + 1}`}</h4>
+            <div className="flex gap-1">
+              {sessionSets.length > 0 && !editingSetId && (
+                <Button onClick={duplicateLastSet} variant="ghost" size="sm" className="h-6 px-2">
+                  <Copy className="h-3 w-3" />
+                </Button>
+              )}
+              <Button 
+                onClick={() => loadAiAdviceMutation.mutate()} 
+                variant="ghost"
+                size="sm"
+                disabled={loadAiAdviceMutation.isPending}
+                className="h-6 px-2 text-xs"
+              >
+                {loadAiAdviceMutation.isPending ? "..." : "💡"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {templateExercise.exercises.measurement_type === 'time' ? (
+              <div className="space-y-1">
+                <Label className="text-xs">Temps (s)</Label>
+                <Select
+                  value={setForm.time_seconds.toString()}
+                  onValueChange={(value) => setSetForm({ ...setForm, time_seconds: parseInt(value) })}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 61 }, (_, i) => i * 5).map((seconds) => (
+                      <SelectItem key={seconds} value={seconds.toString()}>
+                        {seconds}s
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <Label className="text-xs">Reps</Label>
+                <Select
+                  value={setForm.reps.toString()}
+                  onValueChange={(value) => setSetForm({ ...setForm, reps: parseInt(value) })}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {repsOptions.map((rep) => (
+                      <SelectItem key={rep} value={rep.toString()}>
+                        {rep}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs">Poids (kg)</Label>
+              <Select
+                value={setForm.weight_kg.toString()}
+                onValueChange={(value) => setSetForm({ ...setForm, weight_kg: parseFloat(value) })}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {weightOptions.map((weight) => (
+                    <SelectItem key={weight} value={weight.toString()}>
+                      {weight.toFixed(1)} kg
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">Difficulté</Label>
+            <div className="grid grid-cols-4 gap-1">
+              <Button
+                type="button"
+                variant={setForm.perceived_difficulty <= 5 ? "default" : "outline"}
+                onClick={() => setSetForm({ ...setForm, perceived_difficulty: 5 })}
+                className="h-12 py-1 flex flex-col items-center gap-0.5 text-xs"
+              >
+                <span className="text-lg">😊</span>
+                <span className="text-[10px]">Facile</span>
+              </Button>
+              <Button
+                type="button"
+                variant={setForm.perceived_difficulty >= 6 && setForm.perceived_difficulty <= 7 ? "default" : "outline"}
+                onClick={() => setSetForm({ ...setForm, perceived_difficulty: 7 })}
+                className="h-12 py-1 flex flex-col items-center gap-0.5 text-xs"
+              >
+                <span className="text-lg">🙂</span>
+                <span className="text-[10px]">Moyen</span>
+              </Button>
+              <Button
+                type="button"
+                variant={setForm.perceived_difficulty >= 8 && setForm.perceived_difficulty <= 9 ? "default" : "outline"}
+                onClick={() => setSetForm({ ...setForm, perceived_difficulty: 8 })}
+                className="h-12 py-1 flex flex-col items-center gap-0.5 text-xs"
+              >
+                <span className="text-lg">😰</span>
+                <span className="text-[10px]">Difficile</span>
+              </Button>
+              <Button
+                type="button"
+                variant={setForm.perceived_difficulty >= 10 ? "default" : "outline"}
+                onClick={() => setSetForm({ ...setForm, perceived_difficulty: 10 })}
+                className="h-12 py-1 flex flex-col items-center gap-0.5 text-xs"
+              >
+                <span className="text-lg">😫</span>
+                <span className="text-[10px]">Échec</span>
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={setForm.is_warmup ? "default" : "outline"}
+              onClick={() => setSetForm({ ...setForm, is_warmup: !setForm.is_warmup })}
+              className="flex-1 h-9 text-xs"
+            >
+              <Flame className="h-3 w-3 mr-1" />
+              Échauffement
             </Button>
-            {sessionSets.length > 0 && (
-              <Button onClick={duplicateLastSet} variant="outline" size="icon">
-                <Copy className="h-4 w-4" />
+            <Button
+              type="button"
+              variant={setForm.pain ? "destructive" : "outline"}
+              onClick={() => setSetForm({ ...setForm, pain: !setForm.pain })}
+              className="flex-1 h-9 text-xs"
+            >
+              <AlertCircle className="h-3 w-3 mr-1" />
+              Douleur
+            </Button>
+          </div>
+
+          {setForm.pain && (
+            <div className="space-y-1">
+              <Label className="text-xs">Notes sur la douleur</Label>
+              <Textarea
+                value={setForm.pain_notes}
+                onChange={(e) => setSetForm({ ...setForm, pain_notes: e.target.value })}
+                placeholder="Où ? Quel type de douleur ?"
+                className="text-xs min-h-[60px]"
+              />
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button 
+              onClick={() => addSetMutation.mutate()} 
+              disabled={addSetMutation.isPending}
+              className="flex-1 h-9"
+            >
+              {editingSetId ? "Enregistrer" : "Valider"}
+            </Button>
+            {editingSetId && (
+              <Button 
+                onClick={() => setEditingSetId(null)} 
+                variant="outline"
+                className="h-9"
+              >
+                Annuler
               </Button>
             )}
-            <Button 
-              onClick={() => loadAiAdviceMutation.mutate()} 
-              variant="outline"
-              disabled={loadAiAdviceMutation.isPending}
-            >
-              {loadAiAdviceMutation.isPending ? "..." : "💡 Conseil"}
-            </Button>
-          </>
-        ) : (
-          /* Formulaire d'ajout/modification de set */
-          <Card className="w-full">
-            <CardHeader>
-              <CardTitle className="text-base">{editingSetId ? "Modifier le set" : "Nouveau set"}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                {templateExercise.exercises.measurement_type === 'time' ? (
-                  <div className="space-y-2">
-                    <Label>Temps (secondes)</Label>
-                    <Input
-                      type="number"
-                      value={setForm.time_seconds}
-                      onChange={(e) => setSetForm({ ...setForm, time_seconds: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Label>Reps</Label>
-                    <Input
-                      type="number"
-                      value={setForm.reps}
-                      onChange={(e) => setSetForm({ ...setForm, reps: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label>Poids (kg)</Label>
-                  <Input
-                    type="number"
-                    step="0.5"
-                    value={setForm.weight_kg}
-                    onChange={(e) => setSetForm({ ...setForm, weight_kg: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Difficulté perçue</Label>
-                <div className="grid grid-cols-4 gap-2">
-                  <Button
-                    type="button"
-                    variant={setForm.perceived_difficulty <= 5 ? "default" : "outline"}
-                    onClick={() => setSetForm({ ...setForm, perceived_difficulty: 5 })}
-                    className="h-auto py-2 flex flex-col items-center gap-1"
-                  >
-                    <span className="text-2xl">😊</span>
-                    <span className="text-xs">Facile</span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={setForm.perceived_difficulty >= 6 && setForm.perceived_difficulty <= 7 ? "default" : "outline"}
-                    onClick={() => setSetForm({ ...setForm, perceived_difficulty: 7 })}
-                    className="h-auto py-2 flex flex-col items-center gap-1"
-                  >
-                    <span className="text-2xl">🙂</span>
-                    <span className="text-xs">Moyen</span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={setForm.perceived_difficulty >= 8 && setForm.perceived_difficulty <= 9 ? "default" : "outline"}
-                    onClick={() => setSetForm({ ...setForm, perceived_difficulty: 8 })}
-                    className="h-auto py-2 flex flex-col items-center gap-1"
-                  >
-                    <span className="text-2xl">😰</span>
-                    <span className="text-xs">Difficile</span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={setForm.perceived_difficulty >= 10 ? "default" : "outline"}
-                    onClick={() => setSetForm({ ...setForm, perceived_difficulty: 10 })}
-                    className="h-auto py-2 flex flex-col items-center gap-1"
-                  >
-                    <span className="text-2xl">😫</span>
-                    <span className="text-xs">Échec</span>
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  checked={setForm.pain}
-                  onCheckedChange={(checked) => setSetForm({ ...setForm, pain: checked as boolean })}
-                />
-                <Label>Douleur ressentie</Label>
-              </div>
-
-              {setForm.pain && (
-                <div className="space-y-2">
-                  <Label>Notes sur la douleur</Label>
-                  <Textarea
-                    value={setForm.pain_notes}
-                    onChange={(e) => setSetForm({ ...setForm, pain_notes: e.target.value })}
-                    placeholder="Où ? Quel type de douleur ?"
-                  />
-                </div>
-              )}
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  checked={setForm.is_warmup}
-                  onCheckedChange={(checked) => setSetForm({ ...setForm, is_warmup: checked as boolean })}
-                />
-                <Label>Série d'échauffement</Label>
-              </div>
-
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => addSetMutation.mutate()} 
-                  disabled={addSetMutation.isPending}
-                  className="flex-1"
-                >
-                  {editingSetId ? "Enregistrer" : "Valider le set"}
-                </Button>
-                <Button 
-                  onClick={() => {
-                    setShowAddSet(false);
-                    setEditingSetId(null);
-                  }} 
-                  variant="outline"
-                >
-                  Annuler
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Separator />
     </div>

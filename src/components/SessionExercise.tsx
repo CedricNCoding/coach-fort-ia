@@ -287,7 +287,7 @@ export default function SessionExercise({
       {lastSession && (
         <div className="p-2 bg-muted/50 rounded text-xs space-y-0.5">
           <p className="font-medium text-[10px] text-muted-foreground">Dernière séance</p>
-          <p>Meilleur : {lastSession.bestSet.reps} × {Number(lastSession.bestSet.weight_kg).toFixed(1)} kg • {lastSession.avgDifficulty.toFixed(1)}/10</p>
+          <p>Meilleur : {lastSession.bestSet.reps} × {Number(lastSession.bestSet.weight_kg).toFixed(1)} kg • RPE {lastSession.avgDifficulty.toFixed(1)}</p>
         </div>
       )}
 
@@ -304,7 +304,7 @@ export default function SessionExercise({
               ) : (
                 <span>{set.reps} × {Number(set.weight_kg).toFixed(1)}kg</span>
               )}
-              <span className="text-muted-foreground">• {set.perceived_difficulty}/10</span>
+              <span className="text-muted-foreground">• RPE {set.perceived_difficulty || 7}</span>
               {set.pain === 1 && <AlertCircle className="h-3 w-3 text-destructive" />}
               {set.is_warmup === 1 && <Flame className="h-3 w-3 text-orange-500" />}
               <Button 
@@ -423,45 +423,22 @@ export default function SessionExercise({
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">Difficulté</Label>
-            <div className="grid grid-cols-4 gap-1">
-              <Button
-                type="button"
-                variant={setForm.perceived_difficulty <= 5 ? "default" : "outline"}
-                onClick={() => setSetForm({ ...setForm, perceived_difficulty: 5 })}
-                className="h-12 py-1 flex flex-col items-center gap-0.5 text-xs"
-              >
-                <span className="text-lg">😊</span>
-                <span className="text-[10px]">Facile</span>
-              </Button>
-              <Button
-                type="button"
-                variant={setForm.perceived_difficulty >= 6 && setForm.perceived_difficulty <= 7 ? "default" : "outline"}
-                onClick={() => setSetForm({ ...setForm, perceived_difficulty: 7 })}
-                className="h-12 py-1 flex flex-col items-center gap-0.5 text-xs"
-              >
-                <span className="text-lg">🙂</span>
-                <span className="text-[10px]">Moyen</span>
-              </Button>
-              <Button
-                type="button"
-                variant={setForm.perceived_difficulty >= 8 && setForm.perceived_difficulty <= 9 ? "default" : "outline"}
-                onClick={() => setSetForm({ ...setForm, perceived_difficulty: 8 })}
-                className="h-12 py-1 flex flex-col items-center gap-0.5 text-xs"
-              >
-                <span className="text-lg">😰</span>
-                <span className="text-[10px]">Difficile</span>
-              </Button>
-              <Button
-                type="button"
-                variant={setForm.perceived_difficulty >= 10 ? "default" : "outline"}
-                onClick={() => setSetForm({ ...setForm, perceived_difficulty: 10 })}
-                className="h-12 py-1 flex flex-col items-center gap-0.5 text-xs"
-              >
-                <span className="text-lg">😫</span>
-                <span className="text-[10px]">Échec</span>
-              </Button>
-            </div>
+            <Label className="text-xs">RPE (Effort perçu 1-10)</Label>
+            <Select
+              value={setForm.perceived_difficulty?.toString() || "7"}
+              onValueChange={(value) => setSetForm({ ...setForm, perceived_difficulty: parseInt(value) })}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="RPE" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((rpe) => (
+                  <SelectItem key={rpe} value={rpe.toString()}>
+                    RPE {rpe} {rpe <= 3 ? '😊' : rpe <= 6 ? '😐' : rpe <= 8 ? '😓' : '🔥'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex gap-2">

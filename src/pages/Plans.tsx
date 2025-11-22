@@ -28,6 +28,8 @@ export default function Plans() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [showAIWizard, setShowAIWizard] = useState(false);
+  const [showImportJSONDialog, setShowImportJSONDialog] = useState(false);
+  const [importJSONFile, setImportJSONFile] = useState<File | null>(null);
 
   // Charger les plans
   const { data: plans = [] } = useQuery({
@@ -222,6 +224,95 @@ export default function Plans() {
     downloadCSV(template, "template_plan.csv");
   };
 
+  const handleImportJSON = async () => {
+    if (!importJSONFile) {
+      toast({ variant: "destructive", title: "Veuillez sélectionner un fichier" });
+      return;
+    }
+
+    try {
+      const content = await importJSONFile.text();
+      const { parseGymBookJSON } = await import("@/lib/gymbook-import");
+      const result = parseGymBookJSON(content);
+      
+      if (!result) {
+        toast({ variant: "destructive", title: "Format JSON invalide" });
+        return;
+      }
+
+      // Créer le plan
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: newPlan, error: planError } = await supabase
+        .from("workout_templates")
+        .insert([{ name: result.planName, user_id: user?.id }])
+        .select()
+        .single();
+        
+      if (planError || !newPlan) {
+        console.error("Error creating plan:", planError);
+        toast({ variant: "destructive", title: "Erreur lors de la création du plan" });
+        return;
+      }
+
+      // Pour chaque exercice, vérifier s'il existe ou le créer
+      for (const ex of result.exercises) {
+        // Chercher l'exercice
+        const { data: exercises } = await supabase
+          .from("exercises")
+          .select("id")
+          .eq("name", ex.name)
+          .limit(1);
+          
+        let exerciseId = exercises?.[0]?.id;
+        
+        if (!exerciseId) {
+          // Créer l'exercice
+          const { data: newEx, error: exError } = await supabase
+            .from("exercises")
+            .insert([{ 
+              name: ex.name, 
+              user_id: user?.id,
+              is_builtin: 0,
+              measurement_type: ex.measurement_type
+            }])
+            .select()
+            .single();
+            
+          if (exError || !newEx) {
+            console.error("Error creating exercise:", exError);
+            continue;
+          }
+          exerciseId = newEx.id;
+        }
+
+        // Ajouter l'exercice au plan
+        await supabase
+          .from("workout_template_exercises")
+          .insert([{
+            workout_template_id: newPlan.id,
+            exercise_id: exerciseId,
+            order_index: ex.order_index,
+            superset_group: ex.superset_group,
+            target_sets: ex.target_sets,
+            target_reps_min: ex.target_reps_min,
+            target_reps_max: ex.target_reps_max,
+            target_time_seconds: ex.target_time_seconds,
+            target_weight_kg: ex.target_weight_kg,
+            target_rest_seconds: ex.target_rest_seconds,
+            superset_rest_seconds: ex.superset_rest_seconds
+          }]);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["workout_templates"] });
+      toast({ title: "Import réussi !", description: `Plan "${result.planName}" importé` });
+      setShowImportJSONDialog(false);
+      setImportJSONFile(null);
+    } catch (error) {
+      console.error("Import error:", error);
+      toast({ variant: "destructive", title: "Erreur lors de l'import" });
+    }
+  };
+
   return (
     <Layout>
       <div className="container mx-auto p-4 space-y-4">
@@ -236,6 +327,46 @@ export default function Plans() {
               Générer ma semaine avec l'IA
             </Button>
             
+            <Dialog open={showImportJSONDialog} onOpenChange={setShowImportJSONDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importer JSON
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Importer un plan GymBook</DialogTitle>
+                  <DialogDescription>
+                    Importez un plan d'entraînement depuis un fichier JSON GymBook
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Fichier JSON</Label>
+                    <Input
+                      type="file"
+                      accept=".json,.txt"
+                      onChange={(e) => {
+                        setImportJSONFile(e.target.files?.[0] || null);
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Format GymBook JSON avec exercices, séries, poids et temps de repos
+                    </p>
+                  </div>
+                  
+                  <Button 
+                    onClick={handleImportJSON} 
+                    className="w-full"
+                    disabled={!importJSONFile}
+                  >
+                    Importer
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
             <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
               <DialogTrigger asChild>
                 <Button variant="outline">

@@ -1,7 +1,9 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Calendar, Dumbbell, ClipboardList, BookOpen, Settings, History, Play } from "lucide-react";
+import { Calendar, Dumbbell, ClipboardList, BookOpen, Settings, History, Play, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AICoach } from "@/components/AICoach";
 
 interface LayoutProps {
   children: ReactNode;
@@ -13,6 +15,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [coachDialogOpen, setCoachDialogOpen] = useState(false);
 
   const navItems = [
     { path: "/session", icon: Play, label: "Séance" },
@@ -53,8 +56,33 @@ export default function Layout({ children }: LayoutProps) {
               </button>
             );
           })}
+          
+          {/* Bouton Coach IA */}
+          <button
+            onClick={() => setCoachDialogOpen(true)}
+            className="flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all min-w-[70px] flex-shrink-0 text-primary hover:bg-primary/10"
+          >
+            <Brain className="h-5 w-5 drop-shadow-[0_0_8px_rgba(153,69,255,0.5)]" />
+            <span className="text-[11px] font-medium whitespace-nowrap">Coach</span>
+          </button>
         </div>
       </nav>
+
+      {/* Dialogue Coach IA */}
+      <Dialog open={coachDialogOpen} onOpenChange={setCoachDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-primary" />
+              Coach IA
+            </DialogTitle>
+            <DialogDescription>
+              Analyse de votre entraînement et recommandations personnalisées
+            </DialogDescription>
+          </DialogHeader>
+          <AICoach />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

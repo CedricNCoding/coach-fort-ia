@@ -43,7 +43,8 @@ export default function PlanDetail() {
     target_weight_kg: 0,
     target_time_seconds: 0,
     target_rest_seconds: 90,
-    superset_rest_seconds: 120
+    superset_rest_seconds: 120,
+    target_rpe: 7
   });
 
   // Charger le plan
@@ -120,7 +121,8 @@ export default function PlanDetail() {
           target_weight_kg: data.target_weight_kg || null,
           target_time_seconds: data.target_time_seconds || null,
           target_rest_seconds: data.target_rest_seconds,
-          superset_rest_seconds: data.superset_rest_seconds
+          superset_rest_seconds: data.superset_rest_seconds,
+          target_rpe: data.target_rpe || 7
         }]);
       
       if (error) throw error;
@@ -138,7 +140,8 @@ export default function PlanDetail() {
         target_weight_kg: 0,
         target_time_seconds: 0,
         target_rest_seconds: 90,
-        superset_rest_seconds: 120
+        superset_rest_seconds: 120,
+        target_rpe: 7
       });
     }
   });
@@ -596,6 +599,30 @@ export default function PlanDetail() {
                       onChange={(e) => setExerciseForm({ ...exerciseForm, target_rest_seconds: parseInt(e.target.value) || 90 })}
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>RPE cible (1-10)</Label>
+                  <Select
+                    value={exerciseForm.target_rpe.toString()}
+                    onValueChange={(value) => setExerciseForm({ ...exerciseForm, target_rpe: parseInt(value) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 10 }, (_, i) => i + 1).map((rpe) => (
+                        <SelectItem key={rpe} value={rpe.toString()}>
+                          RPE {rpe} - {
+                            rpe <= 3 ? "Très facile 😊" :
+                            rpe <= 6 ? "Modéré 😐" :
+                            rpe <= 8 ? "Difficile 😓" :
+                            "Échec 🔥"
+                          }
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <Button onClick={handleAddExercise} className="w-full" disabled={addExerciseMutation.isPending}>

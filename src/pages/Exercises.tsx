@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Download, Upload, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Download, Upload, Pencil, Trash2, Search, FileText } from "lucide-react";
 import { parseExercisesCSV, generateCSVTemplate, downloadCSV } from "@/lib/csv-import";
 
 export default function Exercises() {
@@ -207,6 +207,82 @@ export default function Exercises() {
     reader.readAsText(file);
   };
 
+  // Import XML GymBook
+  const handleXMLImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const xmlContent = event.target?.result as string;
+      
+      try {
+        const { parseGymBookXML, mapGymBookRegionToMuscleGroup } = await import("@/lib/gymbook-xml-import");
+        const exercises = parseGymBookXML(xmlContent);
+        
+        if (exercises.length === 0) {
+          toast({
+            variant: "destructive",
+            title: "Aucun exercice trouvé dans le fichier"
+          });
+          return;
+        }
+
+        const { data: { user } } = await supabase.auth.getUser();
+        let created = 0, skipped = 0;
+
+        for (const ex of exercises) {
+          try {
+            // Vérifier si l'exercice existe déjà
+            const { data: existing } = await supabase
+              .from("exercises")
+              .select("id")
+              .eq("user_id", user?.id)
+              .eq("name", ex.name)
+              .eq("is_builtin", 0)
+              .single();
+
+            if (!existing) {
+              // Création
+              await supabase
+                .from("exercises")
+                .insert([{
+                  user_id: user?.id,
+                  name: ex.name,
+                  muscle_group: ex.targetRegion ? mapGymBookRegionToMuscleGroup(ex.targetRegion) : "Autre",
+                  equipment: ex.targetMusclesPrimary || "",
+                  measurement_type: "reps",
+                  default_rest_seconds: 90,
+                  notes: ex.notes || "",
+                  is_builtin: 0
+                }]);
+              created++;
+            } else {
+              skipped++;
+            }
+          } catch (error) {
+            console.error("Error importing exercise:", ex.name, error);
+            skipped++;
+          }
+        }
+
+        queryClient.invalidateQueries({ queryKey: ["exercises"] });
+        toast({
+          title: "Import GymBook terminé",
+          description: `${created} créés, ${skipped} ignorés (déjà existants)`
+        });
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: "Erreur d'import",
+          description: error instanceof Error ? error.message : "Erreur inconnue"
+        });
+      }
+    };
+
+    reader.readAsText(file);
+  };
+
   // Filtrage
   const filteredExercises = exercises.filter(ex => {
     const matchSearch = ex.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -252,6 +328,18 @@ export default function Exercises() {
                   accept=".csv"
                   className="hidden"
                   onChange={handleCSVImport}
+                />
+              </label>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <label className="cursor-pointer flex items-center">
+                <FileText className="h-4 w-4 mr-2" />
+                Import GymBook
+                <input
+                  type="file"
+                  accept=".xml"
+                  className="hidden"
+                  onChange={handleXMLImport}
                 />
               </label>
             </Button>

@@ -26,6 +26,7 @@ interface SessionExerciseProps {
   sessionSets: SessionSet[];
   isDeload?: boolean;
   deloadFactor?: number;
+  onSkip?: () => void;
 }
 
 /**
@@ -37,7 +38,8 @@ export default function SessionExercise({
   sessionId, 
   sessionSets,
   isDeload = false,
-  deloadFactor = 0.75
+  deloadFactor = 0.75,
+  onSkip
 }: SessionExerciseProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -337,6 +339,18 @@ export default function SessionExercise({
           targetSeconds={targetRestSeconds}
           onComplete={() => setShowRestTimer(false)}
         />
+      )}
+
+      {/* Bouton Sauter l'exercice */}
+      {sessionSets.length === 0 && onSkip && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onSkip}
+          className="w-full text-xs"
+        >
+          Sauter cet exercice
+        </Button>
       )}
 
       {/* Formulaire d'enregistrement de set - toujours visible */}

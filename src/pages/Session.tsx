@@ -321,6 +321,32 @@ export default function Session() {
     }
   };
 
+  // Gérer le skip d'un exercice
+  const handleSkipExercise = () => {
+    // Cas 1: Il reste des exercices dans le superset actuel
+    if (currentExerciseIndexInSuperset < currentSupersetExercises.length - 1) {
+      setCurrentExerciseIndexInSuperset(prev => prev + 1);
+      return;
+    }
+
+    // Cas 2: Dernier exercice du superset
+    // Vérifier si c'est le dernier set du superset
+    const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));
+    
+    if (currentSetNumber < targetSets) {
+      // Il reste des séries, revenir au premier exercice et incrémenter le numéro de série
+      setCurrentExerciseIndexInSuperset(0);
+      setCurrentSetNumber(prev => prev + 1);
+    } else {
+      // Toutes les séries sont complétées, passer au superset suivant
+      if (currentSupersetIndex < supersetKeys.length - 1) {
+        setCurrentSupersetIndex(prev => prev + 1);
+        setCurrentExerciseIndexInSuperset(0);
+        setCurrentSetNumber(1);
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -467,6 +493,9 @@ export default function Session() {
                 templateExercise={currentExercise}
                 sessionId={currentSession.id}
                 sessionSets={sessionSets.filter(s => s.template_exercise_id === currentExercise.id)}
+                isDeload={isDeloadSession}
+                deloadFactor={deloadFactor}
+                onSkip={handleSkipExercise}
               />
             </div>
           ) : null}

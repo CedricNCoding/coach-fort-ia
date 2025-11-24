@@ -260,7 +260,7 @@ export default function SessionExercise({
       )}
 
       {/* Cibles et dernière séance - plus compact */}
-      <div className="grid grid-cols-4 gap-1.5 text-xs">
+      <div className="grid grid-cols-5 gap-1.5 text-xs">
         <div className="p-1.5 bg-muted rounded text-center">
           <p className="text-muted-foreground text-[10px]">Sets</p>
           <p className="font-bold">{templateExercise.target_sets}</p>
@@ -284,6 +284,12 @@ export default function SessionExercise({
           <p className="text-muted-foreground text-[10px]">Repos</p>
           <p className="font-bold">{targetRestSeconds}s</p>
         </div>
+        {templateExercise.target_rpe && (
+          <div className="p-1.5 bg-primary/10 rounded text-center border border-primary/20">
+            <p className="text-muted-foreground text-[10px]">RPE</p>
+            <p className="font-bold text-primary">{templateExercise.target_rpe}</p>
+          </div>
+        )}
       </div>
 
       {lastSession && (

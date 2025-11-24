@@ -87,22 +87,24 @@ export function AICoach() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Non authentifié");
 
-      // Créer le template de workout
-      const { data: template, error: templateError } = await supabase
-        .from("workout_templates")
-        .insert({
-          user_id: user.id,
-          name: `Programme Coach IA - Semaine ${new Date().toLocaleDateString()}`,
-          goal: program.type === "deload" ? "Décharge" : "Progression",
-          recurring_days: program.sessions.map(s => s.day_of_week)
-        })
-        .select()
-        .single();
+      const createdTemplates = [];
 
-      if (templateError) throw templateError;
-
-      // Pour chaque session, créer les exercices
+      // Créer un template séparé pour chaque session
       for (const session of program.sessions) {
+        const { data: template, error: templateError } = await supabase
+          .from("workout_templates")
+          .insert({
+            user_id: user.id,
+            name: session.name,
+            goal: program.type === "deload" ? "Décharge" : "Progression",
+            recurring_days: [session.day_of_week]
+          })
+          .select()
+          .single();
+
+        if (templateError) throw templateError;
+
+        // Créer les exercices pour cette session spécifique
         let orderIndex = 0;
         for (const ex of session.exercises) {
           // Trouver l'exercice dans la base
@@ -126,13 +128,15 @@ export function AICoach() {
             });
           }
         }
+
+        createdTemplates.push(template);
       }
 
-      return template;
+      return createdTemplates;
     },
-    onSuccess: (template) => {
-      toast.success("Programme appliqué avec succès !");
-      navigate(`/plans/${template.id}`);
+    onSuccess: (templates) => {
+      toast.success(`${templates.length} programme${templates.length > 1 ? 's' : ''} créé${templates.length > 1 ? 's' : ''} avec succès !`);
+      navigate("/plans");
     },
     onError: (error) => {
       toast.error("Erreur lors de l'application du programme");

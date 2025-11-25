@@ -38,6 +38,60 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_interactions_log: {
+        Row: {
+          created_at: string | null
+          function_name: string
+          id: number
+          prompt: string
+          response: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          function_name: string
+          id?: never
+          prompt: string
+          response: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          function_name?: string
+          id?: never
+          prompt?: string
+          response?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_prompts: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: number
+          prompt_content: string
+          prompt_key: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: never
+          prompt_content: string
+          prompt_key: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: never
+          prompt_content?: string
+          prompt_key?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ai_settings: {
         Row: {
           api_key: string | null

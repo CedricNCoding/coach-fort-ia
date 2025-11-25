@@ -6,13 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { Clock, Play, CheckCircle, TrendingDown } from "lucide-react";
+import { Clock, Play, CheckCircle, Timer, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { fr } from "date-fns/locale";
 import SessionExercise from "@/components/SessionExercise";
 import RestTimer from "@/components/RestTimer";
+import ManualTimer from "@/components/ManualTimer";
 
 export default function Session() {
   const { toast } = useToast();
@@ -24,6 +26,8 @@ export default function Session() {
   const [currentExerciseIndexInSuperset, setCurrentExerciseIndexInSuperset] = useState(0);
   const [currentSetNumber, setCurrentSetNumber] = useState(1);
   const [showRestTimer, setShowRestTimer] = useState(false);
+  const [showManualTimer, setShowManualTimer] = useState(false);
+  const [showProgramOverview, setShowProgramOverview] = useState(false);
   const mountedRef = useRef(false);
   const prevSetsCountRef = useRef(0);
 
@@ -426,6 +430,87 @@ export default function Session() {
             </CardHeader>
           </Card>
 
+          {/* Bouton minuteur manuel */}
+          <Button
+            variant="outline"
+            onClick={() => setShowManualTimer(!showManualTimer)}
+            className="w-full"
+          >
+            <Timer className="h-4 w-4 mr-2" />
+            {showManualTimer ? "Masquer le minuteur" : "Lancer un minuteur libre"}
+          </Button>
+
+          {/* Vue d'ensemble du programme */}
+          <Collapsible open={showProgramOverview} onOpenChange={setShowProgramOverview}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">Programme de la séance</CardTitle>
+                    {showProgramOverview ? (
+                      <ChevronUp className="h-5 w-5" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5" />
+                    )}
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-4">
+                  {supersetKeys.map((supersetKey, idx) => {
+                    const supersetExercises = supersets[supersetKey];
+                    const isCurrentSuperset = idx === currentSupersetIndex;
+                    const isPastSuperset = idx < currentSupersetIndex;
+                    
+                    return (
+                      <div
+                        key={supersetKey}
+                        className={`p-3 rounded-lg border ${
+                          isCurrentSuperset
+                            ? "border-primary bg-primary/5"
+                            : isPastSuperset
+                            ? "border-muted bg-muted/30 opacity-60"
+                            : "border-muted"
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-sm">
+                              {isPastSuperset ? "✓" : isCurrentSuperset ? "▶" : ""} Superset {idx + 1}
+                            </span>
+                            {isCurrentSuperset && (
+                              <Badge variant="default" className="text-xs">En cours</Badge>
+                            )}
+                          </div>
+                          {supersetExercises.map((ex) => {
+                            const completedSets = sessionSets.filter(
+                              (s) => s.template_exercise_id === ex.id
+                            ).length;
+                            const targetSets = ex.target_sets || 3;
+                            
+                            return (
+                              <div
+                                key={ex.id}
+                                className="text-sm flex items-center justify-between pl-4"
+                              >
+                                <span className="text-muted-foreground">
+                                  {ex.exercises?.name}
+                                </span>
+                                <span className="text-xs">
+                                  {completedSets}/{targetSets} séries
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
           {/* Progression */}
           <Card>
             <CardContent className="pt-6">
@@ -512,6 +597,9 @@ export default function Session() {
           )}
         </div>
       </div>
+
+      {/* Minuteur manuel */}
+      {showManualTimer && <ManualTimer onClose={() => setShowManualTimer(false)} />}
 
       <AlertDialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
         <AlertDialogContent>

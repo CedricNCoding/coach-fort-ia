@@ -13,6 +13,7 @@ import Exercises from "./pages/Exercises";
 import Session from "./pages/Session";
 import SessionSummary from "./pages/SessionSummary";
 import AISettings from "./pages/AISettings";
+import AdminSettings from "./pages/AdminSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
           <Route path="/session" element={<ProtectedRoute><Session /></ProtectedRoute>} />
           <Route path="/session-summary/:sessionId" element={<ProtectedRoute><SessionSummary /></ProtectedRoute>} />
           <Route path="/reglages-ia" element={<ProtectedRoute><AISettings /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

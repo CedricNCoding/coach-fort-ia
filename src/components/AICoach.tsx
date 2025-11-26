@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Brain, AlertTriangle, TrendingUp, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
 interface CoachResponse {
   memory_update?: string;
@@ -48,6 +49,7 @@ export function AICoach() {
   const [userMessage, setUserMessage] = useState("");
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
 
   const { data: latestAnalysis, isLoading } = useQuery({
     queryKey: ["ai-coach-latest"],
@@ -58,6 +60,7 @@ export function AICoach() {
       if (error) throw error;
       return data as CoachResponse;
     },
+    enabled: !!user && !authLoading,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
@@ -153,11 +156,21 @@ export function AICoach() {
     }
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Card className="w-full">
+        <CardContent className="flex items-center justify-center py-12">
+          <p className="text-muted-foreground">Vous devez être connecté pour utiliser le Coach IA</p>
         </CardContent>
       </Card>
     );

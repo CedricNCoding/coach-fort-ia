@@ -220,7 +220,13 @@ export default function Session() {
     if (!supersets[group]) supersets[group] = [];
     supersets[group].push(ex);
   });
-  const supersetKeys = Object.keys(supersets);
+  
+  // Trier les groupes selon l'order_index minimum de chaque groupe
+  const supersetKeys = Object.keys(supersets).sort((a, b) => {
+    const minOrderA = Math.min(...supersets[a].map(ex => ex.order_index));
+    const minOrderB = Math.min(...supersets[b].map(ex => ex.order_index));
+    return minOrderA - minOrderB;
+  });
   const currentSuperset = supersetKeys[currentSupersetIndex];
   const currentSupersetExercises = supersets[currentSuperset] || [];
   

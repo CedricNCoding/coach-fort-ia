@@ -8,7 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useTrainingStats } from "@/hooks/useTrainingStats";
 import { Loader2, Sparkles, ChevronRight, ChevronLeft, Check } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -30,7 +29,6 @@ const DAYS_OF_WEEK = [
 export default function AIWeekPlanWizard({ open, onOpenChange }: AIWeekPlanWizardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: stats } = useTrainingStats();
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -126,9 +124,9 @@ export default function AIWeekPlanWizard({ open, onOpenChange }: AIWeekPlanWizar
         session_duration_minutes: sessionDuration
       };
 
-      // Appeler l'edge function
+      // Appeler l'edge function (l'historique sera récupéré côté backend)
       const { data, error } = await supabase.functions.invoke('ai-generate-week-plan', {
-        body: { profile, stats, exercises }
+        body: { profile, exercises }
       });
 
       if (error) throw error;
@@ -416,15 +414,13 @@ export default function AIWeekPlanWizard({ open, onOpenChange }: AIWeekPlanWizar
                   />
                 </div>
 
-                {stats && stats.has_data && (
-                  <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm font-medium mb-2">📊 Statistiques détectées</p>
-                    <p className="text-xs text-muted-foreground">
-                      L'IA va se baser sur vos {stats.exercises_used.length} exercices récents 
-                      et vos statistiques des 8 dernières semaines pour personnaliser votre programme.
-                    </p>
-                  </div>
-                )}
+                <div className="bg-muted p-4 rounded-lg">
+                  <p className="text-sm font-medium mb-2">📊 Historique d'entraînement</p>
+                  <p className="text-xs text-muted-foreground">
+                    L'IA va analyser vos 8 dernières semaines d'entraînement pour personnaliser 
+                    votre programme avec des charges réalistes et cohérentes.
+                  </p>
+                </div>
               </div>
             )}
 

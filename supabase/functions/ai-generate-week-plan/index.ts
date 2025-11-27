@@ -29,11 +29,67 @@ serve(async (req) => {
       throw new Error("Non autorisé");
     }
 
-    const { profile, stats, exercises } = await req.json();
+    const { profile, exercises } = await req.json();
 
     console.log("Génération de plan IA pour utilisateur:", user.id);
     console.log("Profil:", profile);
-    console.log("Stats disponibles:", !!stats);
+
+    // Récupérer l'historique des 8 dernières semaines
+    const eightWeeksAgo = new Date();
+    eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
+
+    const { data: recentSessions, error: sessionsError } = await supabase
+      .from("sessions")
+      .select(`
+        id,
+        started_at,
+        finished_at,
+        total_tonnage,
+        avg_difficulty,
+        notes,
+        status
+      `)
+      .eq("user_id", user.id)
+      .eq("status", "completed")
+      .gte("started_at", eightWeeksAgo.toISOString())
+      .order("started_at", { ascending: false });
+
+    if (sessionsError) {
+      console.error("Erreur récupération sessions:", sessionsError);
+    }
+
+    // Récupérer les sets des sessions récentes
+    let sessionSets: any[] = [];
+    if (recentSessions && recentSessions.length > 0) {
+      const sessionIds = recentSessions.map((s) => s.id);
+      const { data: sets, error: setsError } = await supabase
+        .from("session_sets")
+        .select(`
+          session_id,
+          exercise_id,
+          weight_kg,
+          reps,
+          time_seconds,
+          perceived_difficulty,
+          pain,
+          actual_rest_seconds,
+          is_warmup,
+          exercises (
+            name,
+            muscle_group
+          )
+        `)
+        .in("session_id", sessionIds)
+        .eq("is_warmup", 0);
+
+      if (setsError) {
+        console.error("Erreur récupération sets:", setsError);
+      } else {
+        sessionSets = sets || [];
+      }
+    }
+
+    console.log(`Historique récupéré: ${recentSessions?.length || 0} sessions, ${sessionSets.length} séries`);
 
     // Récupérer les réglages IA de l'utilisateur
     const { data: aiSettingsArray } = await supabase.rpc("get_user_api_key", { _user_id: user.id });
@@ -144,23 +200,77 @@ PROFIL :
 
 `;
 
-    // Ajouter les statistiques si disponibles
-    if (stats && stats.has_data) {
-      userPrompt += `STATISTIQUES DES 8 DERNIÈRES SEMAINES :
-- Nombre moyen de séances/semaine : ${stats.avg_sessions_per_week}
-- Volume total moyen/semaine : ${stats.avg_weekly_volume} kg
+    // Ajouter l'historique des sessions si disponible
+    if (recentSessions && recentSessions.length > 0 && sessionSets.length > 0) {
+      // Calculer les statistiques à partir des sessions
+      const totalWeeks = 8;
+      const avgSessionsPerWeek = (recentSessions.length / totalWeeks).toFixed(1);
+      const avgWeeklyVolume = (
+        recentSessions.reduce((sum, s) => sum + (s.total_tonnage || 0), 0) / totalWeeks
+      ).toFixed(0);
 
-Exercices utilisés (avec meilleur poids) :
-${stats.exercises_used
-  .map((ex: any) => `- ${ex.name} (${ex.muscle_group}) : ${ex.best_weight}kg, ${ex.frequency} séances`)
+      // Grouper les sets par exercice
+      const exerciseStats: Record<string, any> = {};
+      sessionSets.forEach((set: any) => {
+        const exName = set.exercises?.name || "Inconnu";
+        if (!exerciseStats[exName]) {
+          exerciseStats[exName] = {
+            name: exName,
+            muscle_group: set.exercises?.muscle_group || "Inconnu",
+            best_weight: 0,
+            total_sets: 0,
+            sessions: new Set(),
+          };
+        }
+        exerciseStats[exName].best_weight = Math.max(
+          exerciseStats[exName].best_weight,
+          set.weight_kg || 0
+        );
+        exerciseStats[exName].total_sets++;
+        exerciseStats[exName].sessions.add(set.session_id);
+      });
+
+      const exercisesUsed = Object.values(exerciseStats)
+        .map((ex: any) => ({
+          name: ex.name,
+          muscle_group: ex.muscle_group,
+          best_weight: ex.best_weight,
+          frequency: ex.sessions.size,
+        }))
+        .sort((a, b) => b.frequency - a.frequency);
+
+      // Volume par groupe musculaire
+      const muscleGroupVolumes: Record<string, number> = {};
+      sessionSets.forEach((set: any) => {
+        const mg = set.exercises?.muscle_group || "Inconnu";
+        muscleGroupVolumes[mg] = (muscleGroupVolumes[mg] || 0) + 1;
+      });
+
+      const mgVolumes = Object.entries(muscleGroupVolumes)
+        .map(([mg, sets]) => ({
+          muscle_group: mg,
+          avg_weekly_sets: (sets / totalWeeks).toFixed(1),
+        }))
+        .sort((a, b) => parseFloat(b.avg_weekly_sets) - parseFloat(a.avg_weekly_sets));
+
+      userPrompt += `HISTORIQUE DES 8 DERNIÈRES SEMAINES :
+- Nombre de séances réalisées : ${recentSessions.length} (moyenne ${avgSessionsPerWeek}/semaine)
+- Volume total moyen/semaine : ${avgWeeklyVolume} kg
+
+Exercices utilisés récemment (avec meilleur poids) :
+${exercisesUsed
+  .slice(0, 15)
+  .map((ex) => `- ${ex.name} (${ex.muscle_group}) : ${ex.best_weight}kg, utilisé ${ex.frequency}x`)
   .join("\n")}
 
 Volume par groupe musculaire (séries/semaine) :
-${stats.muscle_group_volumes.map((mg: any) => `- ${mg.muscle_group} : ${mg.avg_weekly_sets} séries`).join("\n")}
+${mgVolumes.map((mg) => `- ${mg.muscle_group} : ${mg.avg_weekly_sets} séries`).join("\n")}
+
+IMPORTANT : Utilise cet historique pour proposer des poids réalistes et cohérents. Ne propose pas de poids trop élevés par rapport aux meilleures charges passées.
 
 `;
     } else {
-      userPrompt += `AUCUNE STATISTIQUE DISPONIBLE - Estime des poids de départ réalistes selon le profil.
+      userPrompt += `AUCUN HISTORIQUE DISPONIBLE - Estime des poids de départ réalistes selon le profil (âge, niveau).
 
 `;
     }
@@ -201,6 +311,19 @@ Génère maintenant ${profile.sessions_per_week} séances cohérentes entre elle
     const generatedPlan = JSON.parse(data.choices[0].message.content);
 
     console.log("Plan généré avec succès:", generatedPlan.sessions.length, "séances");
+
+    // Logger l'interaction AI dans la base de données
+    try {
+      await supabase.from("ai_interactions_log").insert({
+        user_id: user.id,
+        function_name: "ai-generate-week-plan",
+        prompt: `SYSTEM:\n${systemPrompt}\n\nUSER:\n${userPrompt}`,
+        response: JSON.stringify(generatedPlan),
+      });
+    } catch (logError) {
+      console.error("Erreur lors du logging AI:", logError);
+      // Ne pas bloquer la réponse si le logging échoue
+    }
 
     return new Response(JSON.stringify({ plan: generatedPlan }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

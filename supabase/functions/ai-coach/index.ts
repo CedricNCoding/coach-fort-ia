@@ -136,7 +136,8 @@ serve(async (req) => {
             reps: set.reps,
             rpe: set.perceived_difficulty,
             pain: set.pain,
-            time_seconds: set.time_seconds
+            time_seconds: set.time_seconds,
+            actual_rest_seconds: set.actual_rest_seconds
           });
         });
 
@@ -201,6 +202,7 @@ ${memory || 'Aucune mémoire encore.'}
 - Stagnation ≥ 3 séances → variation exercice (machine/haltères/barre, unilatéral/bilatéral, poulie)
 - Fatigue cumulée (reps baisse, RPE haut, douleurs, volume faible, récup faible) → deload (-15/25% intensité, -30/50% volume)
 - Pratiquant 40+ : prudence articulations, technique prioritaire, récupération optimisée
+- Temps de repos (actual_rest_seconds) : analyse si les repos pris sont adéquats (trop courts = fatigue excessive, trop longs = manque d'intensité)
 
 **ÉCHELLE RPE :**
 1-3 : Très facile 😊

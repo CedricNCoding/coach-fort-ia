@@ -295,7 +295,11 @@ Règles de progression (OBLIGATOIRES) :
 3. Si meilleur set >= rep max du rep range ET difficulté ≤ 8 : AUGMENTER de +2.5% (max +5%)
 4. Si meilleur set dans le rep range ET difficulté correcte (7-8) : MAINTENIR la charge
 5. Si meilleur set < rep min : RÉDUIRE de -5%
-6. Si temps de repos insuffisants affectent les performances : ajuster les recommandations de repos
+6. ANALYSE DES TEMPS DE REPOS (actual_rest_seconds) :
+   - Compare les repos réels avec les repos cibles (target_rest_seconds)
+   - Si repos réels systématiquement < repos cibles ET RPE élevé : c'est normal, repos respectés
+   - Si repos réels absents (null/0) mais séance complétée : NE PAS considérer comme problématique
+   - Seul cas problématique : repos très courts (<30s entre sets lourds) ET baisse de performance visible
 
 Limites de sécurité ABSOLUES :
 - Max +5% de charge par séance

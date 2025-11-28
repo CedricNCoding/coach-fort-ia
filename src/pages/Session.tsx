@@ -251,7 +251,6 @@ export default function Session() {
     if (!currentExercise || showRestTimer) return;
 
     // Éviter l'auto-démarrage du timer lors d'un retour sur la page
-    // On ne déclenche l'avancement que lorsqu'un NOUVEAU set est ajouté
     if (!mountedRef.current) {
       mountedRef.current = true;
       prevSetsCountRef.current = sessionSets.length;
@@ -261,38 +260,39 @@ export default function Session() {
     const haveNewSet = sessionSets.length > prevSetsCountRef.current;
     if (!haveNewSet) return;
 
+    // Mettre à jour le compteur immédiatement pour éviter les doubles déclenchements
+    prevSetsCountRef.current = sessionSets.length;
+
+    // Vérifier quel exercice vient de recevoir un nouveau set
+    const lastSet = sessionSets[sessionSets.length - 1];
+    if (!lastSet) return;
+
+    // Si le set ajouté n'est pas pour l'exercice actuel, ne rien faire
+    if (lastSet.template_exercise_id !== currentExercise.id) return;
+
     const completedSets = sessionSets.filter(s => s.template_exercise_id === currentExercise.id).length;
 
-    // Vérifier si on vient de compléter une série pour l'exercice actuel
-    if (completedSets < currentSetNumber) {
-      prevSetsCountRef.current = sessionSets.length;
-      return; // Pas encore de série complétée
-    }
+    // Vérifier si on vient de compléter la série attendue pour cet exercice
+    if (completedSets < currentSetNumber) return;
 
     // Une série a été complétée pour cet exercice
-
     // Cas 1: Il reste des exercices dans le superset actuel
     if (currentExerciseIndexInSuperset < currentSupersetExercises.length - 1) {
       // Passer à l'exercice suivant du superset (sans repos)
       setCurrentExerciseIndexInSuperset(prev => prev + 1);
-      prevSetsCountRef.current = sessionSets.length;
       return;
     }
 
     // Cas 2: On a terminé le dernier exercice du superset pour cette série
-    // Vérifier si on a complété toutes les séries du superset
+    // Vérifier si tous les exercices du superset ont complété cette série
     const allExercisesCompletedForCurrentSet = currentSupersetExercises.every(ex => {
       const sets = sessionSets.filter(s => s.template_exercise_id === ex.id).length;
       return sets >= currentSetNumber;
     });
 
-    if (!allExercisesCompletedForCurrentSet) {
-      prevSetsCountRef.current = sessionSets.length;
-      return;
-    }
+    if (!allExercisesCompletedForCurrentSet) return;
 
     // Tous les exercices du superset ont complété cette série
-    // Vérifier s'il reste des séries à faire
     const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));
 
     if (currentSetNumber < targetSets) {
@@ -303,11 +303,7 @@ export default function Session() {
       if (currentSupersetIndex < supersetKeys.length - 1) {
         setShowRestTimer(true);
       }
-      // Sinon, areAllSupersetsComplete sera true et affichera le bouton de fin
     }
-
-    // Met à jour le compteur après traitement pour ne pas relancer à l'infini
-    prevSetsCountRef.current = sessionSets.length;
   }, [sessionSets, currentExercise, currentExerciseIndexInSuperset, currentSupersetExercises, showRestTimer, currentSetNumber, currentSupersetIndex, supersetKeys.length]);
   
   // Gérer la fin du timer de repos (inter-série ou inter-superset)

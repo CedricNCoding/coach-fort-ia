@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { Clock, Play, CheckCircle, Timer, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -591,7 +592,7 @@ export default function Session() {
               {/* Navigation manuelle dans les supersets */}
               {currentSupersetExercises.length > 1 && (
                 <Card className="border-accent/50">
-                  <CardContent className="flex items-center justify-between p-4">
+                  <CardContent className="flex items-center justify-between gap-3 p-4">
                     <Button
                       variant="outline"
                       size="sm"
@@ -601,11 +602,23 @@ export default function Session() {
                       <ChevronLeft className="h-4 w-4 mr-1" />
                       Précédent
                     </Button>
-                    <div className="text-center">
-                      <p className="text-sm font-medium">
-                        Exercice {currentExerciseIndexInSuperset + 1} / {currentSupersetExercises.length}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
+                    <div className="flex-1">
+                      <Select
+                        value={currentExerciseIndexInSuperset.toString()}
+                        onValueChange={(value) => setCurrentExerciseIndexInSuperset(parseInt(value))}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {currentSupersetExercises.map((ex, idx) => (
+                            <SelectItem key={ex.id} value={idx.toString()}>
+                              {ex.exercises?.name} ({idx + 1}/{currentSupersetExercises.length})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground text-center mt-1">
                         Série {currentSetNumber}
                       </p>
                     </div>

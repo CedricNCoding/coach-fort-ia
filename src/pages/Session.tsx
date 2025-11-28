@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { Clock, Play, CheckCircle, Timer, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, Play, CheckCircle, Timer, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, formatDistanceToNow } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -353,6 +353,19 @@ export default function Session() {
     }
   };
 
+  // Navigation manuelle entre exercices du superset
+  const handlePreviousExercise = () => {
+    if (currentExerciseIndexInSuperset > 0) {
+      setCurrentExerciseIndexInSuperset(prev => prev - 1);
+    }
+  };
+
+  const handleNextExercise = () => {
+    if (currentExerciseIndexInSuperset < currentSupersetExercises.length - 1) {
+      setCurrentExerciseIndexInSuperset(prev => prev + 1);
+    }
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -575,6 +588,40 @@ export default function Session() {
             </Card>
           ) : currentExercise ? (
             <div className="space-y-4">
+              {/* Navigation manuelle dans les supersets */}
+              {currentSupersetExercises.length > 1 && (
+                <Card className="border-accent/50">
+                  <CardContent className="flex items-center justify-between p-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePreviousExercise}
+                      disabled={currentExerciseIndexInSuperset === 0}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Précédent
+                    </Button>
+                    <div className="text-center">
+                      <p className="text-sm font-medium">
+                        Exercice {currentExerciseIndexInSuperset + 1} / {currentSupersetExercises.length}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Série {currentSetNumber}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleNextExercise}
+                      disabled={currentExerciseIndexInSuperset === currentSupersetExercises.length - 1}
+                    >
+                      Suivant
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+              
               <SessionExercise
                 key={`${currentExercise.id}-${currentSetNumber}`}
                 templateExercise={currentExercise}

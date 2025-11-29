@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Dumbbell, Brain, TrendingUp } from "lucide-react";
+import { Calendar, Dumbbell, Brain, TrendingUp, Users } from "lucide-react";
 import { AICoach } from "@/components/AICoach";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { format, startOfWeek, endOfWeek } from "date-fns";
@@ -152,7 +152,7 @@ const Index = () => {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Button 
           variant="outline"
           onClick={() => navigate("/calendar")}
@@ -176,6 +176,14 @@ const Index = () => {
         >
           <TrendingUp className="h-6 w-6" />
           <span className="text-sm">Historique</span>
+        </Button>
+        <Button 
+          variant="outline"
+          onClick={() => navigate("/coach-semaine")}
+          className="h-20 flex flex-col gap-2"
+        >
+          <Users className="h-6 w-6" />
+          <span className="text-sm">Coach Semaine</span>
         </Button>
       </div>
     </div>

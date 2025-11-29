@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SessionsView } from "@/components/history/SessionsView";
 import { ExercisesView } from "@/components/history/ExercisesView";
+import { RunsView } from "@/components/history/RunsView";
 
 export default function History() {
   const [selectedPeriod, setSelectedPeriod] = useState<"1m" | "3m" | "6m" | "all">("3m");
   const [selectedPlanId, setSelectedPlanId] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"sessions" | "exercises">("sessions");
+  const [viewMode, setViewMode] = useState<"sessions" | "exercises" | "runs">("sessions");
 
   // Récupérer les plans d'entraînement
   const { data: plans } = useQuery({
@@ -106,6 +107,32 @@ export default function History() {
 
   const filteredSessions = getFilteredSessions();
 
+  // Dates pour le filtre runs
+  const getDateRange = () => {
+    if (selectedPeriod === "all") return { startDate: undefined, endDate: undefined };
+    
+    const now = new Date();
+    let startDate: Date;
+    
+    switch (selectedPeriod) {
+      case "1m":
+        startDate = subMonths(now, 1);
+        break;
+      case "3m":
+        startDate = subMonths(now, 3);
+        break;
+      case "6m":
+        startDate = subMonths(now, 6);
+        break;
+      default:
+        return { startDate: undefined, endDate: undefined };
+    }
+    
+    return { startDate, endDate: now };
+  };
+
+  const { startDate, endDate } = getDateRange();
+
   return (
     <Layout>
       <div className="container mx-auto p-4 space-y-6">
@@ -144,10 +171,11 @@ export default function History() {
           </div>
 
           {/* Toggle entre vues */}
-          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "sessions" | "exercises")} className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
-              <TabsTrigger value="sessions">Par séances</TabsTrigger>
-              <TabsTrigger value="exercises">Par exercices</TabsTrigger>
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "sessions" | "exercises" | "runs")} className="w-full">
+            <TabsList className="grid w-full max-w-md grid-cols-3">
+              <TabsTrigger value="sessions">Séances</TabsTrigger>
+              <TabsTrigger value="exercises">Exercices</TabsTrigger>
+              <TabsTrigger value="runs">Courses</TabsTrigger>
             </TabsList>
 
             <TabsContent value="sessions" className="space-y-6 mt-6">
@@ -156,6 +184,10 @@ export default function History() {
 
             <TabsContent value="exercises" className="space-y-6 mt-6">
               <ExercisesView sessions={filteredSessions} />
+            </TabsContent>
+
+            <TabsContent value="runs" className="space-y-6 mt-6">
+              <RunsView startDate={startDate} endDate={endDate} />
             </TabsContent>
           </Tabs>
         </div>

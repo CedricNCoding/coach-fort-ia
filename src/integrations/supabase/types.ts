@@ -170,6 +170,42 @@ export type Database = {
         }
         Relationships: []
       }
+      planned_runs: {
+        Row: {
+          created_at: string | null
+          date: string
+          id: number
+          notes: string | null
+          slot: number
+          status: string | null
+          target_distance_km: number | null
+          target_duration_minutes: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          id?: never
+          notes?: string | null
+          slot?: number
+          status?: string | null
+          target_distance_km?: number | null
+          target_duration_minutes?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          id?: never
+          notes?: string | null
+          slot?: number
+          status?: string | null
+          target_distance_km?: number | null
+          target_duration_minutes?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       planned_workouts: {
         Row: {
           created_at: string | null
@@ -285,6 +321,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      runs: {
+        Row: {
+          avg_heart_rate: number | null
+          created_at: string | null
+          date: string
+          distance_km: number
+          duration_minutes: number
+          id: number
+          max_heart_rate: number | null
+          notes: string | null
+          user_id: string
+        }
+        Insert: {
+          avg_heart_rate?: number | null
+          created_at?: string | null
+          date: string
+          distance_km: number
+          duration_minutes: number
+          id?: never
+          max_heart_rate?: number | null
+          notes?: string | null
+          user_id: string
+        }
+        Update: {
+          avg_heart_rate?: number | null
+          created_at?: string | null
+          date?: string
+          distance_km?: number
+          duration_minutes?: number
+          id?: never
+          max_heart_rate?: number | null
+          notes?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       session_sets: {
         Row: {

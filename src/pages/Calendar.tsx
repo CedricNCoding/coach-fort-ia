@@ -7,8 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, ChevronRight, Plus, Trash2, TrendingDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, TrendingDown, Play } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
+import { RunPlanDialog } from "@/components/RunPlanDialog";
+import { RunRecordDialog } from "@/components/RunRecordDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -26,6 +28,15 @@ export default function Calendar() {
   const [selectedSlot, setSelectedSlot] = useState<1 | 2>(1);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [deleteWorkoutId, setDeleteWorkoutId] = useState<number | null>(null);
+  const [showRunPlanDialog, setShowRunPlanDialog] = useState(false);
+  const [showRunRecordDialog, setShowRunRecordDialog] = useState(false);
+  const [selectedRunForRecord, setSelectedRunForRecord] = useState<{
+    id: number;
+    targetDistance: number | null;
+    targetDuration: number | null;
+  } | null>(null);
+  const [deleteRunId, setDeleteRunId] = useState<number | null>(null);
+  const [activityType, setActivityType] = useState<"workout" | "run" | null>(null);
 
   // Charger les séances planifiées de la semaine
   const weekStart = startOfWeek(currentWeek, { locale: fr });
@@ -40,6 +51,21 @@ export default function Calendar() {
           *,
           workout_template:workout_templates(name, goal)
         `)
+        .gte("date", format(weekStart, "yyyy-MM-dd"))
+        .lte("date", format(weekEnd, "yyyy-MM-dd"));
+      
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // Charger les runs planifiés
+  const { data: plannedRuns = [] } = useQuery({
+    queryKey: ["planned_runs", format(weekStart, "yyyy-MM-dd")],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("planned_runs")
+        .select("*")
         .gte("date", format(weekStart, "yyyy-MM-dd"))
         .lte("date", format(weekEnd, "yyyy-MM-dd"));
       
@@ -160,6 +186,22 @@ export default function Calendar() {
     }
   });
 
+  // Mutation suppression run planifié
+  const deletePlannedRunMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase
+        .from("planned_runs")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["planned_runs"] });
+      toast({ title: "Run supprimé" });
+      setDeleteRunId(null);
+    }
+  });
+
   const handlePlanWorkout = () => {
     if (!selectedDate || !selectedPlanId) {
       toast({ variant: "destructive", title: "Veuillez sélectionner un plan" });
@@ -187,6 +229,16 @@ export default function Calendar() {
 
   const getWorkoutsForDay = (date: Date) => {
     return plannedWorkouts.filter(w => isSameDay(new Date(w.date), date));
+  };
+
+  const getRunsForDay = (date: Date) => {
+    return plannedRuns.filter(r => isSameDay(new Date(r.date), date));
+  };
+
+  const handleDayClick = (date: Date) => {
+    setSelectedDate(date);
+    setActivityType(null);
+    setShowPlanDialog(true);
   };
 
   return (
@@ -260,6 +312,7 @@ export default function Calendar() {
             <div className="grid grid-cols-7 gap-3">
               {days.map((day, idx) => {
                 const workouts = getWorkoutsForDay(day);
+                const runs = getRunsForDay(day);
                 const isToday = isSameDay(day, new Date());
 
                 return (
@@ -269,13 +322,10 @@ export default function Calendar() {
                       "min-h-[160px] p-3 rounded-lg border cursor-pointer hover:border-primary hover:shadow-md transition-all",
                       isToday && "border-primary border-2 bg-accent/20"
                     )}
-                    onClick={() => {
-                      setSelectedDate(day);
-                      setShowPlanDialog(true);
-                    }}
+                    onClick={() => handleDayClick(day)}
                   >
                     <div className="space-y-2">
-                      {workouts.length === 0 && (
+                      {workouts.length === 0 && runs.length === 0 && (
                         <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
                           <Plus className="h-4 w-4" />
                         </div>
@@ -306,6 +356,59 @@ export default function Calendar() {
                             </Button>
                           </div>
                           <span className="text-xs line-clamp-2">{workout.workout_template?.name}</span>
+                        </div>
+                      ))}
+                      {runs.map(run => (
+                        <div
+                          key={`run-${run.id}`}
+                          className={cn(
+                            "text-xs p-2 rounded-md flex flex-col gap-1 group relative",
+                            getStatusColor(run.status),
+                            "border-l-2 border-l-blue-500"
+                          )}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                        >
+                          <div className="flex items-start justify-between gap-1">
+                            <span className="font-medium text-[10px]">🏃 Run {run.slot}</span>
+                            <div className="flex gap-1">
+                              {run.status === "planned" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedDate(day);
+                                    setSelectedRunForRecord({
+                                      id: run.id,
+                                      targetDistance: run.target_distance_km,
+                                      targetDuration: run.target_duration_minutes
+                                    });
+                                    setShowRunRecordDialog(true);
+                                  }}
+                                >
+                                  <Play className="h-3 w-3" />
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteRunId(run.id);
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                          <span className="text-xs">
+                            {run.target_distance_km ? `${run.target_distance_km} km` : "Distance libre"}
+                            {run.target_duration_minutes && ` - ${run.target_duration_minutes} min`}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -341,12 +444,31 @@ export default function Calendar() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                Planifier une séance - {selectedDate && format(selectedDate, "d MMMM yyyy", { locale: fr })}
+                Planifier une activité - {selectedDate && format(selectedDate, "d MMMM yyyy", { locale: fr })}
               </DialogTitle>
               <DialogDescription>
-                Choisissez un créneau et un plan d'entraînement
+                Choisissez le type d'activité
               </DialogDescription>
             </DialogHeader>
+            {activityType === null && (
+              <div className="space-y-3">
+                <Button
+                  onClick={() => setActivityType("workout")}
+                  className="w-full"
+                  variant="outline"
+                >
+                  Séance de musculation
+                </Button>
+                <Button
+                  onClick={() => setActivityType("run")}
+                  className="w-full"
+                  variant="outline"
+                >
+                  Run
+                </Button>
+              </div>
+            )}
+            {activityType === "workout" && (
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Créneau</label>
@@ -380,9 +502,49 @@ export default function Calendar() {
               <Button onClick={handlePlanWorkout} className="w-full" disabled={addPlannedWorkoutMutation.isPending}>
                 {addPlannedWorkoutMutation.isPending ? "Planification..." : "Planifier la séance"}
               </Button>
-            </div>
+              </div>
+            )}
+            {activityType === "run" && (
+              <div className="space-y-4">
+                <Button
+                  onClick={() => {
+                    setShowPlanDialog(false);
+                    setShowRunPlanDialog(true);
+                  }}
+                  className="w-full"
+                >
+                  Planifier un run
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowPlanDialog(false);
+                    setShowRunRecordDialog(true);
+                  }}
+                  className="w-full"
+                  variant="secondary"
+                >
+                  Enregistrer un run déjà effectué
+                </Button>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
+
+        {/* Dialogs pour les runs */}
+        <RunPlanDialog
+          open={showRunPlanDialog}
+          onOpenChange={setShowRunPlanDialog}
+          selectedDate={selectedDate}
+        />
+        
+        <RunRecordDialog
+          open={showRunRecordDialog}
+          onOpenChange={setShowRunRecordDialog}
+          selectedDate={selectedDate}
+          plannedRunId={selectedRunForRecord?.id}
+          targetDistance={selectedRunForRecord?.targetDistance}
+          targetDuration={selectedRunForRecord?.targetDuration}
+        />
 
         {/* Dialog de confirmation de suppression */}
         <AlertDialog open={!!deleteWorkoutId} onOpenChange={(open) => !open && setDeleteWorkoutId(null)}>
@@ -397,6 +559,27 @@ export default function Calendar() {
               <AlertDialogCancel>Annuler</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => deleteWorkoutId && deletePlannedWorkoutMutation.mutate(deleteWorkoutId)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Supprimer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Dialog de confirmation de suppression run */}
+        <AlertDialog open={!!deleteRunId} onOpenChange={(open) => !open && setDeleteRunId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Supprimer ce run ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Cette action est irréversible. Le run planifié sera définitivement supprimé.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteRunId && deletePlannedRunMutation.mutate(deleteRunId)}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Supprimer

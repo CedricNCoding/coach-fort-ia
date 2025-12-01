@@ -25,7 +25,6 @@ export default function Session() {
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [currentSupersetIndex, setCurrentSupersetIndex] = useState(0);
   const [currentExerciseIndexInSuperset, setCurrentExerciseIndexInSuperset] = useState(0);
-  const [currentSetNumber, setCurrentSetNumber] = useState(1);
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [showManualTimer, setShowManualTimer] = useState(false);
   const [showProgramOverview, setShowProgramOverview] = useState(false);
@@ -234,6 +233,15 @@ export default function Session() {
   // Déterminer l'exercice actuel
   const currentExercise = currentSupersetExercises[currentExerciseIndexInSuperset];
   
+  // Calculer le numéro de série actuel basé sur les sets complétés
+  const setsPerExerciseInCurrentSuperset = currentSupersetExercises.map(ex => 
+    sessionSets.filter(s => s.template_exercise_id === ex.id).length
+  );
+  const minCompletedSetsInSuperset = setsPerExerciseInCurrentSuperset.length > 0 
+    ? Math.min(...setsPerExerciseInCurrentSuperset) 
+    : 0;
+  const currentSetNumber = minCompletedSetsInSuperset + 1;
+  
   // Calculer le nombre de sets complétés pour l'exercice actuel
   const completedSetsForCurrentExercise = currentExercise 
     ? sessionSets.filter(s => s.template_exercise_id === currentExercise.id).length 
@@ -271,85 +279,86 @@ export default function Session() {
     // Si le set ajouté n'est pas pour l'exercice actuel, ne rien faire
     if (lastSet.template_exercise_id !== currentExercise.id) return;
 
-    const completedSets = sessionSets.filter(s => s.template_exercise_id === currentExercise.id).length;
+    // Calculer combien de sets chaque exercice du superset a complété
+    const setsPerExercise = currentSupersetExercises.map(ex => ({
+      exercise: ex,
+      completedSets: sessionSets.filter(s => s.template_exercise_id === ex.id).length
+    }));
 
-    // Vérifier si on vient de compléter la série attendue pour cet exercice
-    if (completedSets < currentSetNumber) return;
-
-    // Une série a été complétée pour cet exercice
-    // Cas 1: Il reste des exercices dans le superset actuel
-    if (currentExerciseIndexInSuperset < currentSupersetExercises.length - 1) {
-      // Passer à l'exercice suivant du superset (sans repos)
-      setCurrentExerciseIndexInSuperset(prev => prev + 1);
-      return;
-    }
-
-    // Cas 2: On a terminé le dernier exercice du superset pour cette série
-    // Vérifier si tous les exercices du superset ont complété cette série
-    const allExercisesCompletedForCurrentSet = currentSupersetExercises.every(ex => {
-      const sets = sessionSets.filter(s => s.template_exercise_id === ex.id).length;
-      return sets >= currentSetNumber;
-    });
-
-    if (!allExercisesCompletedForCurrentSet) return;
-
-    // Tous les exercices du superset ont complété cette série
-    const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));
-
-    if (currentSetNumber < targetSets) {
-      // Il reste des séries à faire : démarrer le timer inter-série
-      setShowRestTimer(true);
-    } else {
-      // Toutes les séries sont complétées : démarrer le timer inter-superset si pas le dernier
-      if (currentSupersetIndex < supersetKeys.length - 1) {
+    // Trouver le nombre minimum de sets complétés dans le superset
+    const minCompletedSets = Math.min(...setsPerExercise.map(e => e.completedSets));
+    
+    // Trouver le prochain exercice à faire (celui avec le moins de sets complétés)
+    const nextExerciseToDoIndex = setsPerExercise.findIndex(e => e.completedSets === minCompletedSets);
+    
+    // Si tous les exercices ont le même nombre de sets
+    if (setsPerExercise.every(e => e.completedSets === minCompletedSets)) {
+      // Un cycle complet du superset est terminé
+      const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));
+      
+      if (minCompletedSets < targetSets) {
+        // Il reste des séries à faire : démarrer le timer inter-série
         setShowRestTimer(true);
+      } else {
+        // Toutes les séries du superset sont complétées
+        if (currentSupersetIndex < supersetKeys.length - 1) {
+          // Il reste des supersets : démarrer le timer inter-superset
+          setShowRestTimer(true);
+        }
       }
+    } else {
+      // Il reste des exercices à faire dans ce cycle : passer au prochain exercice
+      setCurrentExerciseIndexInSuperset(nextExerciseToDoIndex);
     }
-  }, [sessionSets, currentExercise, currentExerciseIndexInSuperset, currentSupersetExercises, showRestTimer, currentSetNumber, currentSupersetIndex, supersetKeys.length]);
+  }, [sessionSets, currentExercise, currentExerciseIndexInSuperset, currentSupersetExercises, showRestTimer, currentSupersetIndex, supersetKeys.length]);
   
   // Gérer la fin du timer de repos (inter-série ou inter-superset)
   const handleRestComplete = () => {
     setShowRestTimer(false);
     
-    // Vérifier si c'est un repos inter-série ou inter-superset
+    // Calculer combien de sets chaque exercice du superset actuel a complété
+    const setsPerExercise = currentSupersetExercises.map(ex => ({
+      completedSets: sessionSets.filter(s => s.template_exercise_id === ex.id).length
+    }));
+    
+    const minCompletedSets = Math.min(...setsPerExercise.map(e => e.completedSets));
     const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));
     
-    if (currentSetNumber < targetSets) {
-      // Repos inter-série : on reste dans le même superset, prochaine série
+    if (minCompletedSets < targetSets) {
+      // Repos inter-série : on reste dans le même superset, retour au premier exercice
       setCurrentExerciseIndexInSuperset(0);
-      setCurrentSetNumber(prev => prev + 1);
     } else {
-      // Repos inter-superset : on passe au superset suivant
+      // Repos inter-superset : tous les exercices sont terminés, passer au superset suivant
       if (currentSupersetIndex < supersetKeys.length - 1) {
         setCurrentSupersetIndex(prev => prev + 1);
         setCurrentExerciseIndexInSuperset(0);
-        setCurrentSetNumber(1);
       }
     }
   };
 
   // Gérer le skip d'un exercice
   const handleSkipExercise = () => {
-    // Cas 1: Il reste des exercices dans le superset actuel
+    // Trouver l'exercice suivant dans le superset
     if (currentExerciseIndexInSuperset < currentSupersetExercises.length - 1) {
       setCurrentExerciseIndexInSuperset(prev => prev + 1);
-      return;
-    }
-
-    // Cas 2: Dernier exercice du superset
-    // Vérifier si c'est le dernier set du superset
-    const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));
-    
-    if (currentSetNumber < targetSets) {
-      // Il reste des séries, revenir au premier exercice et incrémenter le numéro de série
-      setCurrentExerciseIndexInSuperset(0);
-      setCurrentSetNumber(prev => prev + 1);
     } else {
-      // Toutes les séries sont complétées, passer au superset suivant
-      if (currentSupersetIndex < supersetKeys.length - 1) {
-        setCurrentSupersetIndex(prev => prev + 1);
+      // Dernier exercice du superset, passer au premier exercice
+      // Vérifier si on a terminé toutes les séries du superset
+      const setsPerExercise = currentSupersetExercises.map(ex => 
+        sessionSets.filter(s => s.template_exercise_id === ex.id).length
+      );
+      const minCompletedSets = Math.min(...setsPerExercise);
+      const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));
+      
+      if (minCompletedSets < targetSets) {
+        // Il reste des séries, revenir au premier exercice
         setCurrentExerciseIndexInSuperset(0);
-        setCurrentSetNumber(1);
+      } else {
+        // Toutes les séries complétées, passer au superset suivant
+        if (currentSupersetIndex < supersetKeys.length - 1) {
+          setCurrentSupersetIndex(prev => prev + 1);
+          setCurrentExerciseIndexInSuperset(0);
+        }
       }
     }
   };

@@ -233,106 +233,102 @@ export default function Session() {
   // Déterminer l'exercice actuel
   const currentExercise = currentSupersetExercises[currentExerciseIndexInSuperset];
   
-  // Calculer le numéro de série actuel basé sur les sets complétés
-  const setsPerExerciseInCurrentSuperset = currentSupersetExercises.map(ex => 
-    sessionSets.filter(s => s.template_exercise_id === ex.id).length
+  // Calculer le numéro de série actuel basé sur les sets de travail complétés (hors échauffements)
+  const setsPerExerciseInCurrentSuperset = currentSupersetExercises.map(ex =>
+    sessionSets.filter(
+      s => s.template_exercise_id === ex.id && s.is_warmup === 0
+    ).length
   );
-  const minCompletedSetsInSuperset = setsPerExerciseInCurrentSuperset.length > 0 
-    ? Math.min(...setsPerExerciseInCurrentSuperset) 
-    : 0;
+  const minCompletedSetsInSuperset =
+    setsPerExerciseInCurrentSuperset.length > 0
+      ? Math.min(...setsPerExerciseInCurrentSuperset)
+      : 0;
   const currentSetNumber = minCompletedSetsInSuperset + 1;
   
-  // Calculer le nombre de sets complétés pour l'exercice actuel
-  const completedSetsForCurrentExercise = currentExercise 
-    ? sessionSets.filter(s => s.template_exercise_id === currentExercise.id).length 
+  // Calculer le nombre de sets de travail complétés pour l'exercice actuel
+  const completedSetsForCurrentExercise = currentExercise
+    ? sessionSets.filter(
+        s => s.template_exercise_id === currentExercise.id && s.is_warmup === 0
+      ).length
     : 0;
   
-  // Vérifier si tous les supersets sont terminés
+  // Vérifier si tous les supersets sont terminés (sets de travail uniquement)
   const areAllSupersetsComplete = supersetKeys.every(key => {
     return supersets[key].every(ex => {
-      const completedSets = sessionSets.filter(s => s.template_exercise_id === ex.id).length;
+      const completedSets = sessionSets.filter(
+        s => s.template_exercise_id === ex.id && s.is_warmup === 0
+      ).length;
       return completedSets >= (ex.target_sets || 3);
     });
   });
   
-  // Gérer l'avancement automatique après ajout d'une série
+  // Gérer l'avancement automatique dans les supersets
   useEffect(() => {
-    if (!currentExercise || showRestTimer) return;
+    if (!currentSupersetExercises.length) return;
 
-    // Éviter l'auto-démarrage du timer lors d'un retour sur la page
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-      prevSetsCountRef.current = sessionSets.length;
+    // Calculer les sets de travail (hors échauffements) pour chaque exercice du superset
+    const setsPerExercise = currentSupersetExercises.map(ex => {
+      const completedWorkSets = sessionSets.filter(
+        s => s.template_exercise_id === ex.id && s.is_warmup === 0
+      ).length;
+
+      const targetSets = ex.target_sets || 3;
+
+      return {
+        exercise: ex,
+        completedWorkSets,
+        targetSets,
+        isDone: completedWorkSets >= targetSets,
+      };
+    });
+
+    // Si tous les exercices de ce superset sont terminés
+    const allDone = setsPerExercise.every(e => e.isDone);
+
+    if (allDone) {
+      // Si ce n'est pas le dernier superset, on prépare le repos inter-superset
+      if (currentSupersetIndex < supersetKeys.length - 1 && !showRestTimer) {
+        setShowRestTimer(true);
+      }
       return;
     }
 
-    const haveNewSet = sessionSets.length > prevSetsCountRef.current;
-    if (!haveNewSet) return;
+    // Déterminer le prochain exercice à réaliser dans ce superset
+    const incompleteExercises = setsPerExercise.filter(e => !e.isDone);
 
-    // Mettre à jour le compteur immédiatement pour éviter les doubles déclenchements
-    prevSetsCountRef.current = sessionSets.length;
+    const minCompletedSets = Math.min(
+      ...incompleteExercises.map(e => e.completedWorkSets)
+    );
 
-    // Vérifier quel exercice vient de recevoir un nouveau set
-    const lastSet = sessionSets[sessionSets.length - 1];
-    if (!lastSet) return;
+    const nextExercise = incompleteExercises.find(
+      e => e.completedWorkSets === minCompletedSets
+    );
 
-    // Si le set ajouté n'est pas pour l'exercice actuel, ne rien faire
-    if (lastSet.template_exercise_id !== currentExercise.id) return;
+    if (!nextExercise) return;
 
-    // Calculer combien de sets chaque exercice du superset a complété
-    const setsPerExercise = currentSupersetExercises.map(ex => ({
-      exercise: ex,
-      completedSets: sessionSets.filter(s => s.template_exercise_id === ex.id).length
-    }));
+    const nextIndex = currentSupersetExercises.findIndex(
+      ex => ex.id === nextExercise.exercise.id
+    );
 
-    // Trouver le nombre minimum de sets complétés dans le superset
-    const minCompletedSets = Math.min(...setsPerExercise.map(e => e.completedSets));
-    
-    // Trouver le prochain exercice à faire (celui avec le moins de sets complétés)
-    const nextExerciseToDoIndex = setsPerExercise.findIndex(e => e.completedSets === minCompletedSets);
-    
-    // Si tous les exercices ont le même nombre de sets
-    if (setsPerExercise.every(e => e.completedSets === minCompletedSets)) {
-      // Un cycle complet du superset est terminé
-      const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));
-      
-      if (minCompletedSets < targetSets) {
-        // Il reste des séries à faire : démarrer le timer inter-série
-        setShowRestTimer(true);
-      } else {
-        // Toutes les séries du superset sont complétées
-        if (currentSupersetIndex < supersetKeys.length - 1) {
-          // Il reste des supersets : démarrer le timer inter-superset
-          setShowRestTimer(true);
-        }
-      }
-    } else {
-      // Il reste des exercices à faire dans ce cycle : passer au prochain exercice
-      setCurrentExerciseIndexInSuperset(nextExerciseToDoIndex);
+    if (nextIndex !== -1 && nextIndex !== currentExerciseIndexInSuperset) {
+      setCurrentExerciseIndexInSuperset(nextIndex);
     }
-  }, [sessionSets, currentExercise, currentExerciseIndexInSuperset, currentSupersetExercises, showRestTimer, currentSupersetIndex, supersetKeys.length]);
+  }, [
+    sessionSets,
+    currentSupersetExercises,
+    currentSupersetIndex,
+    supersetKeys.length,
+    showRestTimer,
+    currentExerciseIndexInSuperset,
+  ]);
   
-  // Gérer la fin du timer de repos (inter-série ou inter-superset)
+  // Gérer la fin du timer de repos (uniquement inter-superset)
   const handleRestComplete = () => {
     setShowRestTimer(false);
-    
-    // Calculer combien de sets chaque exercice du superset actuel a complété
-    const setsPerExercise = currentSupersetExercises.map(ex => ({
-      completedSets: sessionSets.filter(s => s.template_exercise_id === ex.id).length
-    }));
-    
-    const minCompletedSets = Math.min(...setsPerExercise.map(e => e.completedSets));
-    const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));
-    
-    if (minCompletedSets < targetSets) {
-      // Repos inter-série : on reste dans le même superset, retour au premier exercice
+
+    if (currentSupersetIndex < supersetKeys.length - 1) {
+      setCurrentSupersetIndex(prev => prev + 1);
       setCurrentExerciseIndexInSuperset(0);
-    } else {
-      // Repos inter-superset : tous les exercices sont terminés, passer au superset suivant
-      if (currentSupersetIndex < supersetKeys.length - 1) {
-        setCurrentSupersetIndex(prev => prev + 1);
-        setCurrentExerciseIndexInSuperset(0);
-      }
     }
   };
 
@@ -345,7 +341,7 @@ export default function Session() {
       // Dernier exercice du superset, passer au premier exercice
       // Vérifier si on a terminé toutes les séries du superset
       const setsPerExercise = currentSupersetExercises.map(ex => 
-        sessionSets.filter(s => s.template_exercise_id === ex.id).length
+        sessionSets.filter(s => s.template_exercise_id === ex.id && s.is_warmup === 0).length
       );
       const minCompletedSets = Math.min(...setsPerExercise);
       const targetSets = Math.max(...currentSupersetExercises.map(ex => ex.target_sets || 3));

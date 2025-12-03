@@ -30,6 +30,8 @@ export default function Session() {
   const [showProgramOverview, setShowProgramOverview] = useState(false);
   const mountedRef = useRef(false);
   const prevSetsCountRef = useRef(0);
+  const prevCycleCountRef = useRef(0);
+  const [isInterSetRest, setIsInterSetRest] = useState(false);
 
   // Charger la session en cours avec les infos de décharge
   const { data: currentSession, isLoading } = useQuery({
@@ -262,9 +264,15 @@ export default function Session() {
     });
   });
   
+  // Reset cycle counter when superset changes
+  useEffect(() => {
+    prevCycleCountRef.current = 0;
+  }, [currentSupersetIndex]);
+
   // Gérer l'avancement automatique dans les supersets
   useEffect(() => {
     if (!currentSupersetExercises.length) return;
+    if (showRestTimer) return; // Ne pas changer d'exercice pendant le repos
 
     // Calculer les sets de travail (hors échauffements) pour chaque exercice du superset
     const setsPerExercise = currentSupersetExercises.map(ex => {
@@ -287,18 +295,37 @@ export default function Session() {
 
     if (allDone) {
       // Si ce n'est pas le dernier superset, on prépare le repos inter-superset
-      if (currentSupersetIndex < supersetKeys.length - 1 && !showRestTimer) {
+      if (currentSupersetIndex < supersetKeys.length - 1) {
+        setIsInterSetRest(false);
         setShowRestTimer(true);
       }
       return;
     }
 
+    // Calculer le nombre minimum de sets complétés dans le superset
+    const completedSetsCounts = setsPerExercise.map(e => e.completedWorkSets);
+    const minCompletedSets = Math.min(...completedSetsCounts);
+    const maxCompletedSets = Math.max(...completedSetsCounts);
+
+    // Détecter si un cycle complet vient d'être terminé
+    // Un cycle est complet quand tous les exercices ont le même nombre de sets
+    // ET ce nombre est supérieur au cycle précédent
+    if (minCompletedSets === maxCompletedSets && minCompletedSets > prevCycleCountRef.current) {
+      // Un cycle complet vient d'être terminé
+      // Vérifier s'il reste des sets à faire
+      const hasMoreSets = setsPerExercise.some(e => e.completedWorkSets < e.targetSets);
+      
+      if (hasMoreSets) {
+        // Lancer le timer de repos inter-set
+        prevCycleCountRef.current = minCompletedSets;
+        setIsInterSetRest(true);
+        setShowRestTimer(true);
+        return;
+      }
+    }
+
     // Déterminer le prochain exercice à réaliser dans ce superset
     const incompleteExercises = setsPerExercise.filter(e => !e.isDone);
-
-    const minCompletedSets = Math.min(
-      ...incompleteExercises.map(e => e.completedWorkSets)
-    );
 
     const nextExercise = incompleteExercises.find(
       e => e.completedWorkSets === minCompletedSets
@@ -322,13 +349,22 @@ export default function Session() {
     currentExerciseIndexInSuperset,
   ]);
   
-  // Gérer la fin du timer de repos (uniquement inter-superset)
+  // Gérer la fin du timer de repos
   const handleRestComplete = () => {
     setShowRestTimer(false);
 
-    if (currentSupersetIndex < supersetKeys.length - 1) {
-      setCurrentSupersetIndex(prev => prev + 1);
+    if (isInterSetRest) {
+      // C'était un repos inter-set, on reste dans le même superset
+      // Revenir au premier exercice pour le prochain cycle
+      setIsInterSetRest(false);
       setCurrentExerciseIndexInSuperset(0);
+    } else {
+      // C'était un repos inter-superset, passer au superset suivant
+      if (currentSupersetIndex < supersetKeys.length - 1) {
+        prevCycleCountRef.current = 0; // Reset pour le nouveau superset
+        setCurrentSupersetIndex(prev => prev + 1);
+        setCurrentExerciseIndexInSuperset(0);
+      }
     }
   };
 

@@ -123,13 +123,14 @@ export default function SessionSummary() {
         const safeWeight = Math.min(Math.max(ex.next_target_weight_kg, maxWeightDecrease), maxWeightIncrease);
         const safeSets = Math.min(ex.next_target_sets, (current.target_sets || 3) + 1);
 
-        // Mettre à jour le template
+        // Mettre à jour le template - target_weight_kg ET next_target_weight_kg
         await supabase
           .from("workout_template_exercises")
           .update({
             target_sets: safeSets,
             target_reps_min: ex.next_target_reps_min,
             target_reps_max: ex.next_target_reps_max,
+            target_weight_kg: safeWeight,
             next_target_weight_kg: safeWeight,
             target_difficulty_note: ex.next_target_difficulty_note
           })

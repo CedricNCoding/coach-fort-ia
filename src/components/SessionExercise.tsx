@@ -44,6 +44,7 @@ export default function SessionExercise({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showRestTimer, setShowRestTimer] = useState(false);
+  const [lastSetTimestamp, setLastSetTimestamp] = useState<number | null>(null);
   const [aiAdvice, setAiAdvice] = useState<string>("");
   const [editingSetId, setEditingSetId] = useState<number | null>(null);
 
@@ -155,6 +156,12 @@ export default function SessionExercise({
         
         if (error) throw error;
       } else {
+        // Calculer le temps de repos réel depuis le dernier set
+        let actualRestSeconds: number | null = null;
+        if (lastSetTimestamp && sessionSets.length > 0) {
+          actualRestSeconds = Math.round((Date.now() - lastSetTimestamp) / 1000);
+        }
+        
         // Ajout d'un nouveau set
         const setIndex = sessionSets.length;
         
@@ -171,7 +178,8 @@ export default function SessionExercise({
             perceived_difficulty: setForm.perceived_difficulty,
             pain: setForm.pain ? 1 : 0,
             pain_notes: setForm.pain ? setForm.pain_notes : null,
-            is_warmup: setForm.is_warmup ? 1 : 0
+            is_warmup: setForm.is_warmup ? 1 : 0,
+            actual_rest_seconds: actualRestSeconds
           }]);
         
         if (error) throw error;
@@ -182,6 +190,9 @@ export default function SessionExercise({
       toast({ title: editingSetId ? "Set modifié" : "Set enregistré" });
       
       if (!editingSetId) {
+        // Enregistrer le timestamp pour calculer le temps de repos du prochain set
+        setLastSetTimestamp(Date.now());
+        
         // Préremplir avec les valeurs du set qui vient d'être enregistré
         setSetForm(prev => ({
           ...prev,

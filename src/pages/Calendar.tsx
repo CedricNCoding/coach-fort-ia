@@ -584,12 +584,14 @@ export default function Calendar() {
               </DialogTitle>
             <DialogDescription>
                 {selectedDate && (
-                  <span className="font-medium">{getSlotShortLabel(selectedSlot)}</span>
-                )}
-                {getSlotActivity(selectedDate!, selectedSlot) && (
-                  <span className="text-warning ml-2">
-                    ⚠️ Ce créneau est déjà occupé
-                  </span>
+                  <>
+                    <span className="font-medium">{getSlotShortLabel(selectedSlot)}</span>
+                    {getSlotActivity(selectedDate, selectedSlot) && (
+                      <span className="text-warning ml-2">
+                        ⚠️ Ce créneau est déjà occupé
+                      </span>
+                    )}
+                  </>
                 )}
               </DialogDescription>
             </DialogHeader>

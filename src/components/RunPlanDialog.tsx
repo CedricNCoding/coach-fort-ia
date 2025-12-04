@@ -1,29 +1,62 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { TIME_SLOTS } from "@/lib/calendar-constants";
 
 interface RunPlanDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedDate: Date | null;
+  selectedSlot?: number;
 }
 
-export function RunPlanDialog({ open, onOpenChange, selectedDate }: RunPlanDialogProps) {
+export function RunPlanDialog({ open, onOpenChange, selectedDate, selectedSlot = 1 }: RunPlanDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [slot, setSlot] = useState<1 | 2 | 3>(1);
+  const [slot, setSlot] = useState<number>(selectedSlot);
   const [targetDistance, setTargetDistance] = useState("");
   const [targetDuration, setTargetDuration] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Mettre à jour le slot quand selectedSlot change
+  useEffect(() => {
+    setSlot(selectedSlot);
+  }, [selectedSlot]);
+
+  // Charger les activités existantes pour cette date
+  const { data: existingActivities } = useQuery({
+    queryKey: ["day_activities", selectedDate ? format(selectedDate, "yyyy-MM-dd") : null],
+    queryFn: async () => {
+      if (!selectedDate) return { workouts: [], runs: [] };
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      
+      const [workoutsRes, runsRes] = await Promise.all([
+        supabase.from("planned_workouts").select("slot").eq("date", dateStr),
+        supabase.from("planned_runs").select("slot").eq("date", dateStr)
+      ]);
+      
+      return {
+        workouts: workoutsRes.data || [],
+        runs: runsRes.data || []
+      };
+    },
+    enabled: open && !!selectedDate
+  });
+
+  const isSlotOccupied = (slotId: number) => {
+    if (!existingActivities) return false;
+    return existingActivities.workouts.some(w => w.slot === slotId) || 
+           existingActivities.runs.some(r => r.slot === slotId);
+  };
 
   const addPlannedRunMutation = useMutation({
     mutationFn: async () => {
@@ -32,17 +65,32 @@ export function RunPlanDialog({ open, onOpenChange, selectedDate }: RunPlanDialo
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Non authentifié");
 
-      // Vérifier si le slot est déjà occupé
-      const { data: existing } = await supabase
-        .from("planned_runs")
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+
+      // Vérifier si le slot est déjà occupé par un workout
+      const { data: existingWorkout } = await supabase
+        .from("planned_workouts")
         .select("id")
         .eq("user_id", user.id)
-        .eq("date", format(selectedDate, "yyyy-MM-dd"))
+        .eq("date", dateStr)
         .eq("slot", slot)
         .maybeSingle();
 
-      if (existing) {
-        // Remplacer le run existant
+      if (existingWorkout) {
+        throw new Error("Ce créneau est déjà occupé par une séance de musculation");
+      }
+
+      // Vérifier si le slot est déjà occupé par un run
+      const { data: existingRun } = await supabase
+        .from("planned_runs")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("date", dateStr)
+        .eq("slot", slot)
+        .maybeSingle();
+
+      if (existingRun) {
+        // Mettre à jour le run existant
         const { error } = await supabase
           .from("planned_runs")
           .update({
@@ -51,7 +99,7 @@ export function RunPlanDialog({ open, onOpenChange, selectedDate }: RunPlanDialo
             notes,
             status: "planned"
           })
-          .eq("id", existing.id);
+          .eq("id", existingRun.id);
         if (error) throw error;
       } else {
         // Créer un nouveau run
@@ -59,7 +107,7 @@ export function RunPlanDialog({ open, onOpenChange, selectedDate }: RunPlanDialo
           .from("planned_runs")
           .insert({
             user_id: user.id,
-            date: format(selectedDate, "yyyy-MM-dd"),
+            date: dateStr,
             slot,
             target_distance_km: targetDistance ? parseFloat(targetDistance) : null,
             target_duration_minutes: targetDuration ? parseInt(targetDuration) : null,
@@ -71,6 +119,7 @@ export function RunPlanDialog({ open, onOpenChange, selectedDate }: RunPlanDialo
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["planned_runs"] });
+      queryClient.invalidateQueries({ queryKey: ["day_activities"] });
       toast({ title: "Run planifié" });
       onOpenChange(false);
       setTargetDistance("");
@@ -96,7 +145,7 @@ export function RunPlanDialog({ open, onOpenChange, selectedDate }: RunPlanDialo
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            Planifier un run - {selectedDate && format(selectedDate, "d MMMM yyyy", { locale: fr })}
+            Planifier un run - {selectedDate && format(selectedDate, "EEEE d MMMM", { locale: fr })}
           </DialogTitle>
           <DialogDescription>
             Définissez vos objectifs pour ce run
@@ -104,17 +153,23 @@ export function RunPlanDialog({ open, onOpenChange, selectedDate }: RunPlanDialo
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="slot">Créneau</Label>
-            <Select value={slot.toString()} onValueChange={(val) => setSlot(parseInt(val) as 1 | 2 | 3)}>
+            <Label htmlFor="slot">Créneau horaire</Label>
+            <Select value={slot.toString()} onValueChange={(val) => setSlot(parseInt(val))}>
               <SelectTrigger id="slot">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1">Créneau 1 (matin)</SelectItem>
-                <SelectItem value="2">Créneau 2 (après-midi)</SelectItem>
-                <SelectItem value="3">Créneau 3 (soir)</SelectItem>
+                {TIME_SLOTS.map(s => (
+                  <SelectItem key={s.id} value={s.id.toString()}>
+                    {s.icon} {s.label} ({s.time})
+                    {isSlotOccupied(s.id) && " - Occupé"}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+            {isSlotOccupied(slot) && (
+              <p className="text-xs text-warning">⚠️ Ce créneau est déjà occupé</p>
+            )}
           </div>
 
           <div className="space-y-2">

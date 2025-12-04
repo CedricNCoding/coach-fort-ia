@@ -7,25 +7,36 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, ChevronRight, Plus, Trash2, TrendingDown, Play } from "lucide-react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
+import { ChevronLeft, ChevronRight, Plus, Trash2, TrendingDown, Play, Dumbbell, PersonStanding } from "lucide-react";
+import { format, isSameDay, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval } from "date-fns";
 import { RunPlanDialog } from "@/components/RunPlanDialog";
 import { RunRecordDialog } from "@/components/RunRecordDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { TIME_SLOTS, getSlotShortLabel } from "@/lib/calendar-constants";
+
+type SlotActivity = {
+  type: "workout" | "run";
+  id: number;
+  slot: number;
+  status: string | null;
+  name?: string;
+  goal?: string | null;
+  is_deload?: boolean | null;
+  target_distance_km?: number | null;
+  target_duration_minutes?: number | null;
+};
 
 export default function Calendar() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showPlanDialog, setShowPlanDialog] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<1 | 2>(1);
+  const [selectedSlot, setSelectedSlot] = useState<number>(1);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [deleteWorkoutId, setDeleteWorkoutId] = useState<number | null>(null);
   const [showRunPlanDialog, setShowRunPlanDialog] = useState(false);
@@ -37,6 +48,9 @@ export default function Calendar() {
   } | null>(null);
   const [deleteRunId, setDeleteRunId] = useState<number | null>(null);
   const [activityType, setActivityType] = useState<"workout" | "run" | null>(null);
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+  const [pendingActivity, setPendingActivity] = useState<{ date: string; slot: number; template_id?: number } | null>(null);
+  const [existingActivityToOverwrite, setExistingActivityToOverwrite] = useState<SlotActivity | null>(null);
 
   // Charger les séances planifiées de la semaine
   const weekStart = startOfWeek(currentWeek, { locale: fr });
@@ -117,36 +131,93 @@ export default function Calendar() {
     }
   });
 
+  // Vérifier si un créneau est occupé
+  const getSlotActivity = (date: Date, slot: number): SlotActivity | null => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    
+    const workout = plannedWorkouts.find(w => w.date === dateStr && w.slot === slot);
+    if (workout) {
+      return {
+        type: "workout",
+        id: workout.id,
+        slot: workout.slot,
+        status: workout.status,
+        name: workout.workout_template?.name,
+        goal: workout.workout_template?.goal,
+        is_deload: workout.is_deload
+      };
+    }
+    
+    const run = plannedRuns.find(r => r.date === dateStr && r.slot === slot);
+    if (run) {
+      return {
+        type: "run",
+        id: run.id,
+        slot: run.slot,
+        status: run.status,
+        target_distance_km: run.target_distance_km,
+        target_duration_minutes: run.target_duration_minutes
+      };
+    }
+    
+    return null;
+  };
+
+  // Trouver le premier créneau libre pour une date
+  const getFirstFreeSlot = (date: Date): number | null => {
+    for (const slot of TIME_SLOTS) {
+      if (!getSlotActivity(date, slot.id)) {
+        return slot.id;
+      }
+    }
+    return null;
+  };
+
   // Mutation ajout séance planifiée
   const addPlannedWorkoutMutation = useMutation({
-    mutationFn: async (data: { date: string; slot: number; template_id: number }) => {
+    mutationFn: async (data: { date: string; slot: number; template_id: number; overwrite?: boolean }) => {
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Non authentifié");
       
-      // Vérifier si le slot est déjà occupé
-      const { data: existing } = await supabase
+      // Vérifier si le slot est déjà occupé par un workout
+      const { data: existingWorkout } = await supabase
         .from("planned_workouts")
         .select("id")
-        .eq("user_id", user?.id)
+        .eq("user_id", user.id)
         .eq("date", data.date)
         .eq("slot", data.slot)
         .single();
 
-      if (existing) {
-        // Remplacer la séance existante
+      // Vérifier si le slot est déjà occupé par un run
+      const { data: existingRun } = await supabase
+        .from("planned_runs")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("date", data.date)
+        .eq("slot", data.slot)
+        .single();
+
+      if (existingRun && data.overwrite) {
+        // Supprimer le run existant si on veut écraser
+        await supabase.from("planned_runs").delete().eq("id", existingRun.id);
+      }
+
+      if (existingWorkout) {
+        // Mettre à jour la séance existante
         const { error } = await supabase
           .from("planned_workouts")
           .update({
             workout_template_id: data.template_id,
             status: "planned"
           })
-          .eq("id", existing.id);
+          .eq("id", existingWorkout.id);
         if (error) throw error;
       } else {
         // Créer une nouvelle séance
         const { error } = await supabase
           .from("planned_workouts")
           .insert([{
-            user_id: user?.id,
+            user_id: user.id,
             date: data.date,
             slot: data.slot,
             workout_template_id: data.template_id,
@@ -157,9 +228,13 @@ export default function Calendar() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["planned_workouts"] });
+      queryClient.invalidateQueries({ queryKey: ["planned_runs"] });
       toast({ title: "Séance planifiée" });
       setShowPlanDialog(false);
       setSelectedPlanId("");
+      setShowOverwriteConfirm(false);
+      setPendingActivity(null);
+      setExistingActivityToOverwrite(null);
     },
     onError: (error: any) => {
       toast({
@@ -208,17 +283,38 @@ export default function Calendar() {
       return;
     }
 
-    addPlannedWorkoutMutation.mutate({
-      date: format(selectedDate, "yyyy-MM-dd"),
-      slot: selectedSlot,
-      template_id: parseInt(selectedPlanId)
-    });
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    const existingActivity = getSlotActivity(selectedDate, selectedSlot);
+
+    if (existingActivity) {
+      // Demander confirmation avant d'écraser
+      setPendingActivity({ date: dateStr, slot: selectedSlot, template_id: parseInt(selectedPlanId) });
+      setExistingActivityToOverwrite(existingActivity);
+      setShowOverwriteConfirm(true);
+    } else {
+      // Pas de conflit, planifier directement
+      addPlannedWorkoutMutation.mutate({
+        date: dateStr,
+        slot: selectedSlot,
+        template_id: parseInt(selectedPlanId)
+      });
+    }
+  };
+
+  const handleConfirmOverwrite = () => {
+    if (pendingActivity) {
+      addPlannedWorkoutMutation.mutate({
+        ...pendingActivity,
+        template_id: pendingActivity.template_id!,
+        overwrite: true
+      });
+    }
   };
 
   // Générer les jours de la semaine
   const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null) => {
     switch (status) {
       case "done": return "bg-success text-success-foreground";
       case "skipped": return "bg-destructive text-destructive-foreground";
@@ -227,16 +323,49 @@ export default function Calendar() {
     }
   };
 
-  const getWorkoutsForDay = (date: Date) => {
-    return plannedWorkouts.filter(w => isSameDay(new Date(w.date), date));
-  };
+  const getActivitiesForDay = (date: Date): SlotActivity[] => {
+    const activities: SlotActivity[] = [];
+    
+    plannedWorkouts.filter(w => isSameDay(new Date(w.date), date)).forEach(workout => {
+      activities.push({
+        type: "workout",
+        id: workout.id,
+        slot: workout.slot,
+        status: workout.status,
+        name: workout.workout_template?.name,
+        goal: workout.workout_template?.goal,
+        is_deload: workout.is_deload
+      });
+    });
 
-  const getRunsForDay = (date: Date) => {
-    return plannedRuns.filter(r => isSameDay(new Date(r.date), date));
+    plannedRuns.filter(r => isSameDay(new Date(r.date), date)).forEach(run => {
+      activities.push({
+        type: "run",
+        id: run.id,
+        slot: run.slot,
+        status: run.status,
+        target_distance_km: run.target_distance_km,
+        target_duration_minutes: run.target_duration_minutes
+      });
+    });
+
+    // Trier par slot
+    return activities.sort((a, b) => a.slot - b.slot);
   };
 
   const handleDayClick = (date: Date) => {
     setSelectedDate(date);
+    setActivityType(null);
+    // Trouver le premier créneau libre
+    const freeSlot = getFirstFreeSlot(date);
+    setSelectedSlot(freeSlot || 1);
+    setShowPlanDialog(true);
+  };
+
+  const handleSlotClick = (date: Date, slot: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedDate(date);
+    setSelectedSlot(slot);
     setActivityType(null);
     setShowPlanDialog(true);
   };
@@ -244,55 +373,55 @@ export default function Calendar() {
   return (
     <Layout>
       <div className="container mx-auto p-4 space-y-4">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <h2 className="text-xl font-semibold">
-            Semaine du {format(weekStart, "d MMM", { locale: fr })} au {format(weekEnd, "d MMM yyyy", { locale: fr })}
-          </h2>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          {isWeekDeload && (
-            <Badge variant="secondary" className="ml-2">
-              <TrendingDown className="h-3 w-3 mr-1" />
-              Décharge
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="deload-toggle"
-              checked={isWeekDeload}
-              onCheckedChange={(checked) => toggleWeekDeloadMutation.mutate(checked)}
-              disabled={plannedWorkouts.length === 0}
-            />
-            <label htmlFor="deload-toggle" className="text-sm font-medium cursor-pointer">
-              Semaine de décharge
-            </label>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <h2 className="text-xl font-semibold">
+              Semaine du {format(weekStart, "d MMM", { locale: fr })} au {format(weekEnd, "d MMM yyyy", { locale: fr })}
+            </h2>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            {isWeekDeload && (
+              <Badge variant="secondary" className="ml-2">
+                <TrendingDown className="h-3 w-3 mr-1" />
+                Décharge
+              </Badge>
+            )}
           </div>
-          <Button onClick={() => setCurrentWeek(new Date())}>
-            Aujourd'hui
-          </Button>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="deload-toggle"
+                checked={isWeekDeload}
+                onCheckedChange={(checked) => toggleWeekDeloadMutation.mutate(checked)}
+                disabled={plannedWorkouts.length === 0}
+              />
+              <label htmlFor="deload-toggle" className="text-sm font-medium cursor-pointer">
+                Semaine de décharge
+              </label>
+            </div>
+            <Button onClick={() => setCurrentWeek(new Date())}>
+              Aujourd'hui
+            </Button>
+          </div>
         </div>
-      </div>
 
         {/* Calendrier */}
         <Card>
           <CardContent className="p-4">
             {/* En-têtes jours avec dates */}
-            <div className="grid grid-cols-7 gap-3 mb-3">
+            <div className="grid grid-cols-7 gap-2 mb-3">
               {days.map((day, idx) => (
                 <div key={idx} className="text-center space-y-1">
                   <div className="text-xs font-medium text-muted-foreground">
@@ -308,109 +437,107 @@ export default function Calendar() {
               ))}
             </div>
 
-            {/* Jours de la semaine */}
-            <div className="grid grid-cols-7 gap-3">
+            {/* Jours de la semaine avec créneaux */}
+            <div className="grid grid-cols-7 gap-2">
               {days.map((day, idx) => {
-                const workouts = getWorkoutsForDay(day);
-                const runs = getRunsForDay(day);
+                const activities = getActivitiesForDay(day);
                 const isToday = isSameDay(day, new Date());
 
                 return (
                   <div
                     key={idx}
                     className={cn(
-                      "min-h-[160px] p-3 rounded-lg border cursor-pointer hover:border-primary hover:shadow-md transition-all",
-                      isToday && "border-primary border-2 bg-accent/20"
+                      "min-h-[200px] rounded-lg border transition-all",
+                      isToday && "border-primary border-2 bg-accent/10"
                     )}
-                    onClick={() => handleDayClick(day)}
                   >
-                    <div className="space-y-2">
-                      {workouts.length === 0 && runs.length === 0 && (
-                        <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
-                          <Plus className="h-4 w-4" />
-                        </div>
-                      )}
-                      {workouts.map(workout => (
-                        <div
-                          key={workout.id}
-                          className={cn(
-                            "text-xs p-2 rounded-md flex flex-col gap-1 group relative",
-                            getStatusColor(workout.status)
-                          )}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                        >
-                          <div className="flex items-start justify-between gap-1">
-                            <span className="font-medium text-[10px]">Slot {workout.slot}</span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity absolute top-1 right-1"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteWorkoutId(workout.id);
-                              }}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                    {/* Affichage des créneaux */}
+                    <div className="p-1 space-y-1">
+                      {TIME_SLOTS.map(slot => {
+                        const activity = activities.find(a => a.slot === slot.id);
+                        
+                        return (
+                          <div
+                            key={slot.id}
+                            className={cn(
+                              "p-1.5 rounded text-xs cursor-pointer transition-all group relative",
+                              activity 
+                                ? getStatusColor(activity.status)
+                                : "bg-background/50 hover:bg-accent/50 border border-dashed border-muted-foreground/20"
+                            )}
+                            onClick={(e) => handleSlotClick(day, slot.id, e)}
+                          >
+                            {activity ? (
+                              <div className="space-y-0.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] opacity-70">{slot.icon} {slot.time}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (activity.type === "workout") {
+                                        setDeleteWorkoutId(activity.id);
+                                      } else {
+                                        setDeleteRunId(activity.id);
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {activity.type === "workout" ? (
+                                    <>
+                                      <Dumbbell className="h-3 w-3 flex-shrink-0" />
+                                      <span className="font-medium line-clamp-1">{activity.name}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <PersonStanding className="h-3 w-3 flex-shrink-0" />
+                                      <span className="font-medium">
+                                        {activity.target_distance_km ? `${activity.target_distance_km}km` : "Run"}
+                                        {activity.target_duration_minutes && ` ${activity.target_duration_minutes}min`}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                                {activity.type === "run" && activity.status === "planned" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4 absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedDate(day);
+                                      setSelectedRunForRecord({
+                                        id: activity.id,
+                                        targetDistance: activity.target_distance_km || null,
+                                        targetDuration: activity.target_duration_minutes || null
+                                      });
+                                      setShowRunRecordDialog(true);
+                                    }}
+                                  >
+                                    <Play className="h-3 w-3" />
+                                  </Button>
+                                )}
+                                {activity.is_deload && (
+                                  <Badge variant="outline" className="text-[8px] px-1 py-0">
+                                    <TrendingDown className="h-2 w-2 mr-0.5" />
+                                    Décharge
+                                  </Badge>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center gap-1 py-1 text-muted-foreground/50">
+                                <span className="text-[10px]">{slot.icon}</span>
+                                <Plus className="h-3 w-3" />
+                              </div>
+                            )}
                           </div>
-                          <span className="text-xs line-clamp-2">{workout.workout_template?.name}</span>
-                        </div>
-                      ))}
-                      {runs.map(run => (
-                        <div
-                          key={`run-${run.id}`}
-                          className={cn(
-                            "text-xs p-2 rounded-md flex flex-col gap-1 group relative",
-                            getStatusColor(run.status),
-                            "border-l-2 border-l-blue-500"
-                          )}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                        >
-                          <div className="flex items-start justify-between gap-1">
-                            <span className="font-medium text-[10px]">🏃 Run {run.slot}</span>
-                            <div className="flex gap-1">
-                              {run.status === "planned" && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedDate(day);
-                                    setSelectedRunForRecord({
-                                      id: run.id,
-                                      targetDistance: run.target_distance_km,
-                                      targetDuration: run.target_duration_minutes
-                                    });
-                                    setShowRunRecordDialog(true);
-                                  }}
-                                >
-                                  <Play className="h-3 w-3" />
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeleteRunId(run.id);
-                                }}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                          <span className="text-xs">
-                            {run.target_distance_km ? `${run.target_distance_km} km` : "Distance libre"}
-                            {run.target_duration_minutes && ` - ${run.target_duration_minutes} min`}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -422,6 +549,15 @@ export default function Calendar() {
         {/* Légende */}
         <div className="flex flex-wrap gap-4 text-sm">
           <div className="flex items-center gap-2">
+            <Dumbbell className="h-4 w-4" />
+            <span>Musculation</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <PersonStanding className="h-4 w-4" />
+            <span>Run</span>
+          </div>
+          <div className="w-px h-4 bg-border" />
+          <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-muted" />
             <span>Planifié</span>
           </div>
@@ -431,7 +567,7 @@ export default function Calendar() {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-warning" />
-            <span>Ajusté par IA</span>
+            <span>Ajusté</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-destructive" />
@@ -444,68 +580,95 @@ export default function Calendar() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                Planifier une activité - {selectedDate && format(selectedDate, "d MMMM yyyy", { locale: fr })}
+                Planifier une activité - {selectedDate && format(selectedDate, "EEEE d MMMM", { locale: fr })}
               </DialogTitle>
-              <DialogDescription>
-                Choisissez le type d'activité
+            <DialogDescription>
+                {selectedDate && (
+                  <span className="font-medium">{getSlotShortLabel(selectedSlot)}</span>
+                )}
+                {getSlotActivity(selectedDate!, selectedSlot) && (
+                  <span className="text-warning ml-2">
+                    ⚠️ Ce créneau est déjà occupé
+                  </span>
+                )}
               </DialogDescription>
             </DialogHeader>
             {activityType === null && (
-              <div className="space-y-3">
-                <Button
-                  onClick={() => setActivityType("workout")}
-                  className="w-full"
-                  variant="outline"
-                >
-                  Séance de musculation
-                </Button>
-                <Button
-                  onClick={() => setActivityType("run")}
-                  className="w-full"
-                  variant="outline"
-                >
-                  Run
-                </Button>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Créneau horaire</label>
+                  <Select value={selectedSlot.toString()} onValueChange={(val) => setSelectedSlot(parseInt(val))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIME_SLOTS.map(slot => {
+                        const activity = selectedDate ? getSlotActivity(selectedDate, slot.id) : null;
+                        return (
+                          <SelectItem key={slot.id} value={slot.id.toString()}>
+                            {slot.icon} {slot.label} ({slot.time})
+                            {activity && (
+                              <span className="text-muted-foreground ml-2">
+                                - {activity.type === "workout" ? activity.name : "Run"}
+                              </span>
+                            )}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={() => setActivityType("workout")}
+                    variant="outline"
+                    className="h-20 flex flex-col gap-2"
+                  >
+                    <Dumbbell className="h-6 w-6" />
+                    <span>Musculation</span>
+                  </Button>
+                  <Button
+                    onClick={() => setActivityType("run")}
+                    variant="outline"
+                    className="h-20 flex flex-col gap-2"
+                  >
+                    <PersonStanding className="h-6 w-6" />
+                    <span>Run</span>
+                  </Button>
+                </div>
               </div>
             )}
             {activityType === "workout" && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Créneau</label>
-                <Select value={selectedSlot.toString()} onValueChange={(val) => setSelectedSlot(parseInt(val) as 1 | 2)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Créneau 1 (matin)</SelectItem>
-                    <SelectItem value="2">Créneau 2 (après-midi/soir)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Plan d'entraînement</label>
-                <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir un plan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {plans.map(plan => (
-                      <SelectItem key={plan.id} value={plan.id.toString()}>
-                        {plan.name} {plan.goal && `(${plan.goal})`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="space-y-4">
+                <Button variant="ghost" onClick={() => setActivityType(null)} className="mb-2">
+                  ← Retour
+                </Button>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Plan d'entraînement</label>
+                  <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir un plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {plans.map(plan => (
+                        <SelectItem key={plan.id} value={plan.id.toString()}>
+                          {plan.name} {plan.goal && `(${plan.goal})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <Button onClick={handlePlanWorkout} className="w-full" disabled={addPlannedWorkoutMutation.isPending}>
-                {addPlannedWorkoutMutation.isPending ? "Planification..." : "Planifier la séance"}
-              </Button>
+                <Button onClick={handlePlanWorkout} className="w-full" disabled={addPlannedWorkoutMutation.isPending}>
+                  {addPlannedWorkoutMutation.isPending ? "Planification..." : "Planifier la séance"}
+                </Button>
               </div>
             )}
             {activityType === "run" && (
               <div className="space-y-4">
+                <Button variant="ghost" onClick={() => setActivityType(null)} className="mb-2">
+                  ← Retour
+                </Button>
                 <Button
                   onClick={() => {
                     setShowPlanDialog(false);
@@ -523,18 +686,47 @@ export default function Calendar() {
                   className="w-full"
                   variant="secondary"
                 >
-                  Enregistrer un run déjà effectué
+                  Enregistrer un run effectué
                 </Button>
               </div>
             )}
           </DialogContent>
         </Dialog>
 
+        {/* Dialog confirmation écrasement */}
+        <AlertDialog open={showOverwriteConfirm} onOpenChange={setShowOverwriteConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remplacer l'activité existante ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Ce créneau contient déjà {existingActivityToOverwrite?.type === "workout" 
+                  ? `la séance "${existingActivityToOverwrite.name}"` 
+                  : "un run planifié"}.
+                <br />
+                Voulez-vous le remplacer par la nouvelle séance ?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                setShowOverwriteConfirm(false);
+                setPendingActivity(null);
+                setExistingActivityToOverwrite(null);
+              }}>
+                Annuler
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmOverwrite}>
+                Remplacer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Dialogs pour les runs */}
         <RunPlanDialog
           open={showRunPlanDialog}
           onOpenChange={setShowRunPlanDialog}
           selectedDate={selectedDate}
+          selectedSlot={selectedSlot}
         />
         
         <RunRecordDialog

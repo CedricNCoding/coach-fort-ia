@@ -49,6 +49,7 @@ export default function Calendar() {
     targetDuration: number | null;
   } | null>(null);
   const [deleteRunId, setDeleteRunId] = useState<number | null>(null);
+  const [deleteCompletedRunId, setDeleteCompletedRunId] = useState<number | null>(null);
   const [activityType, setActivityType] = useState<"workout" | "run" | null>(null);
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
   const [pendingActivity, setPendingActivity] = useState<{ date: string; slot: number; template_id?: number } | null>(null);
@@ -294,6 +295,22 @@ export default function Calendar() {
     }
   });
 
+  // Mutation suppression run effectué
+  const deleteCompletedRunMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase
+        .from("runs")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["runs"] });
+      toast({ title: "Run effectué supprimé" });
+      setDeleteCompletedRunId(null);
+    }
+  });
+
   const handlePlanWorkout = () => {
     if (!selectedDate || !selectedPlanId) {
       toast({ variant: "destructive", title: "Veuillez sélectionner un plan" });
@@ -462,28 +479,121 @@ export default function Calendar() {
           </div>
         </div>
 
-        {/* Calendrier - scrollable horizontalement sur mobile */}
-        <Card className="overflow-hidden">
-          <CardContent className="p-2 sm:p-4 overflow-x-auto">
-            {/* En-têtes jours avec dates */}
-            <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 sm:mb-3 min-w-[600px]">
-              {days.map((day, idx) => (
-                <div key={idx} className="text-center space-y-0.5 sm:space-y-1">
-                  <div className="text-[10px] sm:text-xs font-medium text-muted-foreground">
-                    {format(day, "EEE", { locale: fr })}
+        {/* Calendrier - Vue desktop (grille) et mobile (liste verticale) */}
+        <Card>
+          <CardContent className="p-2 sm:p-4">
+            {/* Desktop: grille 7 colonnes */}
+            <div className="hidden sm:block">
+              {/* En-têtes jours avec dates */}
+              <div className="grid grid-cols-7 gap-2 mb-3">
+                {days.map((day, idx) => (
+                  <div key={idx} className="text-center space-y-1">
+                    <div className="text-xs font-medium text-muted-foreground">
+                      {format(day, "EEE", { locale: fr })}
+                    </div>
+                    <div className={cn(
+                      "text-lg font-semibold",
+                      isSameDay(day, new Date()) && "text-primary"
+                    )}>
+                      {format(day, "d")}
+                    </div>
                   </div>
-                  <div className={cn(
-                    "text-sm sm:text-lg font-semibold",
-                    isSameDay(day, new Date()) && "text-primary"
-                  )}>
-                    {format(day, "d")}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+
+              {/* Jours de la semaine avec créneaux */}
+              <div className="grid grid-cols-7 gap-2">
+                {days.map((day, idx) => {
+                  const activities = getActivitiesForDay(day);
+                  const isToday = isSameDay(day, new Date());
+
+                  return (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "min-h-[200px] rounded-lg border transition-all",
+                        isToday && "border-primary border-2 bg-accent/10"
+                      )}
+                    >
+                      <div className="p-1 space-y-1">
+                        {TIME_SLOTS.map(slot => {
+                          const activity = activities.find(a => a.slot === slot.id);
+                          
+                          return (
+                            <div
+                              key={slot.id}
+                              className={cn(
+                                "p-1.5 rounded text-xs cursor-pointer transition-all group relative",
+                                activity 
+                                  ? getStatusColor(activity.status)
+                                  : "bg-background/50 hover:bg-accent/50 border border-dashed border-muted-foreground/20"
+                              )}
+                              onClick={(e) => handleSlotClick(day, slot.id, e)}
+                            >
+                              {activity ? (
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] opacity-70">{slot.icon} {slot.time}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (activity.type === "workout") {
+                                          setDeleteWorkoutId(activity.id);
+                                        } else if (activity.type === "run") {
+                                          setDeleteRunId(activity.id);
+                                        } else if (activity.type === "completed_run") {
+                                          setDeleteCompletedRunId(activity.id);
+                                        }
+                                      }}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {activity.type === "workout" ? (
+                                      <>
+                                        <Dumbbell className="h-3 w-3 flex-shrink-0" />
+                                        <span className="font-medium line-clamp-1">{activity.name}</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <PersonStanding className="h-3 w-3 flex-shrink-0" />
+                                        <span className="font-medium">
+                                          {activity.distance_km || activity.target_distance_km 
+                                            ? `${activity.distance_km || activity.target_distance_km}km` 
+                                            : "Run"}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                  {activity.is_deload && (
+                                    <Badge variant="outline" className="text-[8px] px-1 py-0">
+                                      <TrendingDown className="h-2 w-2 mr-0.5" />
+                                      Décharge
+                                    </Badge>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-1 py-1 text-muted-foreground/50">
+                                  <span className="text-[10px]">{slot.icon}</span>
+                                  <Plus className="h-3 w-3" />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Jours de la semaine avec créneaux */}
-            <div className="grid grid-cols-7 gap-1 sm:gap-2 min-w-[600px]">
+            {/* Mobile: liste verticale par jour */}
+            <div className="sm:hidden space-y-2">
               {days.map((day, idx) => {
                 const activities = getActivitiesForDay(day);
                 const isToday = isSameDay(day, new Date());
@@ -492,104 +602,96 @@ export default function Calendar() {
                   <div
                     key={idx}
                     className={cn(
-                      "min-h-[160px] sm:min-h-[200px] rounded-lg border transition-all",
+                      "rounded-lg border p-2",
                       isToday && "border-primary border-2 bg-accent/10"
                     )}
                   >
-                    {/* Affichage des créneaux */}
-                    <div className="p-0.5 sm:p-1 space-y-0.5 sm:space-y-1">
-                      {TIME_SLOTS.map(slot => {
-                        const activity = activities.find(a => a.slot === slot.id);
-                        
-                        return (
-                          <div
-                            key={slot.id}
-                            className={cn(
-                              "p-1 sm:p-1.5 rounded text-[10px] sm:text-xs cursor-pointer transition-all group relative",
-                              activity 
-                                ? getStatusColor(activity.status)
-                                : "bg-background/50 hover:bg-accent/50 border border-dashed border-muted-foreground/20"
-                            )}
-                            onClick={(e) => handleSlotClick(day, slot.id, e)}
-                          >
-                            {activity ? (
-                              <div className="space-y-0.5">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[8px] sm:text-[10px] opacity-70">{slot.icon}</span>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-3 w-3 sm:h-4 sm:w-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (activity.type === "workout") {
-                                        setDeleteWorkoutId(activity.id);
-                                      } else if (activity.type === "run") {
-                                        setDeleteRunId(activity.id);
-                                      }
-                                      // completed_run: pas de suppression directe depuis le calendrier
-                                    }}
-                                  >
-                                    {activity.type !== "completed_run" && <Trash2 className="h-2 w-2 sm:h-3 sm:w-3" />}
-                                  </Button>
-                                </div>
-                                <div className="flex items-center gap-0.5 sm:gap-1">
-                                  {activity.type === "workout" ? (
-                                    <>
-                                      <Dumbbell className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
-                                      <span className="font-medium line-clamp-1 text-[9px] sm:text-xs">{activity.name}</span>
-                                    </>
-                                  ) : activity.type === "completed_run" ? (
-                                    <>
-                                      <PersonStanding className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
-                                      <span className="font-medium text-[9px] sm:text-xs">
-                                        {activity.distance_km ? `${activity.distance_km}km` : "Run"}
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <PersonStanding className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
-                                      <span className="font-medium text-[9px] sm:text-xs">
-                                        {activity.target_distance_km ? `${activity.target_distance_km}km` : "Run"}
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                                {activity.type === "run" && activity.status === "planned" && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-3 w-3 sm:h-4 sm:w-4 absolute bottom-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedDate(day);
-                                      setSelectedRunForRecord({
-                                        id: activity.id,
-                                        targetDistance: activity.target_distance_km || null,
-                                        targetDuration: activity.target_duration_minutes || null
-                                      });
-                                      setShowRunRecordDialog(true);
-                                    }}
-                                  >
-                                    <Play className="h-2 w-2 sm:h-3 sm:w-3" />
-                                  </Button>
+                    {/* En-tête du jour */}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "text-lg font-bold",
+                          isToday && "text-primary"
+                        )}>
+                          {format(day, "d")}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {format(day, "EEEE", { locale: fr })}
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => handleDayClick(day)}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Ajouter
+                      </Button>
+                    </div>
+
+                    {/* Créneaux avec activités */}
+                    <div className="space-y-1">
+                      {activities.length > 0 ? (
+                        activities.map((activity) => {
+                          const slotInfo = TIME_SLOTS.find(s => s.id === activity.slot);
+                          return (
+                            <div
+                              key={`${activity.type}-${activity.id}`}
+                              className={cn(
+                                "flex items-center justify-between p-2 rounded",
+                                getStatusColor(activity.status)
+                              )}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs opacity-70">{slotInfo?.icon}</span>
+                                {activity.type === "workout" ? (
+                                  <>
+                                    <Dumbbell className="h-4 w-4" />
+                                    <span className="font-medium text-sm">{activity.name}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <PersonStanding className="h-4 w-4" />
+                                    <span className="font-medium text-sm">
+                                      {activity.distance_km || activity.target_distance_km 
+                                        ? `${activity.distance_km || activity.target_distance_km}km` 
+                                        : "Run"}
+                                      {(activity.duration_minutes || activity.target_duration_minutes) && 
+                                        ` - ${activity.duration_minutes || activity.target_duration_minutes}min`}
+                                    </span>
+                                  </>
                                 )}
                                 {activity.is_deload && (
-                                  <Badge variant="outline" className="text-[6px] sm:text-[8px] px-0.5 sm:px-1 py-0">
-                                    <TrendingDown className="h-1.5 w-1.5 sm:h-2 sm:w-2 mr-0.5" />
+                                  <Badge variant="outline" className="text-[10px] px-1">
                                     Décharge
                                   </Badge>
                                 )}
                               </div>
-                            ) : (
-                              <div className="flex items-center justify-center gap-0.5 py-0.5 sm:py-1 text-muted-foreground/50">
-                                <span className="text-[8px] sm:text-[10px]">{slot.icon}</span>
-                                <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => {
+                                  if (activity.type === "workout") {
+                                    setDeleteWorkoutId(activity.id);
+                                  } else if (activity.type === "run") {
+                                    setDeleteRunId(activity.id);
+                                  } else if (activity.type === "completed_run") {
+                                    setDeleteCompletedRunId(activity.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center text-xs text-muted-foreground py-2">
+                          Aucune activité
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -818,6 +920,27 @@ export default function Calendar() {
               <AlertDialogCancel>Annuler</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => deleteRunId && deletePlannedRunMutation.mutate(deleteRunId)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Supprimer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Dialog de confirmation de suppression run effectué */}
+        <AlertDialog open={!!deleteCompletedRunId} onOpenChange={(open) => !open && setDeleteCompletedRunId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Supprimer ce run effectué ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Cette action est irréversible. Le run enregistré et ses données seront définitivement supprimés de votre historique.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteCompletedRunId && deleteCompletedRunMutation.mutate(deleteCompletedRunId)}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Supprimer

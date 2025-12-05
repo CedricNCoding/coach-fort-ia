@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { TIME_SLOTS, getSlotShortLabel } from "@/lib/calendar-constants";
 
 type SlotActivity = {
-  type: "workout" | "run";
+  type: "workout" | "run" | "completed_run";
   id: number;
   slot: number;
   status: string | null;
@@ -28,6 +28,8 @@ type SlotActivity = {
   is_deload?: boolean | null;
   target_distance_km?: number | null;
   target_duration_minutes?: number | null;
+  distance_km?: number | null;
+  duration_minutes?: number | null;
 };
 
 export default function Calendar() {
@@ -79,6 +81,21 @@ export default function Calendar() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("planned_runs")
+        .select("*")
+        .gte("date", format(weekStart, "yyyy-MM-dd"))
+        .lte("date", format(weekEnd, "yyyy-MM-dd"));
+      
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // Charger les runs effectués (pour les afficher aussi dans le calendrier)
+  const { data: completedRuns = [] } = useQuery({
+    queryKey: ["runs", format(weekStart, "yyyy-MM-dd")],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("runs")
         .select("*")
         .gte("date", format(weekStart, "yyyy-MM-dd"))
         .lte("date", format(weekEnd, "yyyy-MM-dd"));
@@ -349,6 +366,27 @@ export default function Calendar() {
       });
     });
 
+    // Ajouter les runs effectués (sans slot, on les met sur le premier créneau libre)
+    completedRuns.filter(r => isSameDay(new Date(r.date), date)).forEach(run => {
+      // Trouver le premier slot libre pour ce run effectué
+      const usedSlots = activities.map(a => a.slot);
+      let freeSlot = 1;
+      for (const slot of TIME_SLOTS) {
+        if (!usedSlots.includes(slot.id)) {
+          freeSlot = slot.id;
+          break;
+        }
+      }
+      activities.push({
+        type: "completed_run",
+        id: run.id,
+        slot: freeSlot,
+        status: "done",
+        distance_km: run.distance_km,
+        duration_minutes: run.duration_minutes
+      });
+    });
+
     // Trier par slot
     return activities.sort((a, b) => a.slot - b.slot);
   };
@@ -372,63 +410,70 @@ export default function Calendar() {
 
   return (
     <Layout>
-      <div className="container mx-auto p-4 space-y-4">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+      <div className="container mx-auto p-2 sm:p-4 space-y-3 sm:space-y-4">
+        {/* Header mobile-friendly */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-2 sm:mb-6">
+          <div className="flex items-center gap-2 sm:gap-4">
             <Button
               variant="outline"
               size="icon"
+              className="h-8 w-8 sm:h-10 sm:w-10"
               onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-xl font-semibold">
-              Semaine du {format(weekStart, "d MMM", { locale: fr })} au {format(weekEnd, "d MMM yyyy", { locale: fr })}
+            <h2 className="text-sm sm:text-xl font-semibold text-center flex-1 sm:flex-none">
+              {format(weekStart, "d", { locale: fr })} - {format(weekEnd, "d MMM", { locale: fr })}
             </h2>
             <Button
               variant="outline"
               size="icon"
+              className="h-8 w-8 sm:h-10 sm:w-10"
               onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
             {isWeekDeload && (
-              <Badge variant="secondary" className="ml-2">
-                <TrendingDown className="h-3 w-3 mr-1" />
+              <Badge variant="secondary" className="ml-1 sm:ml-2 text-[10px] sm:text-xs">
+                <TrendingDown className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
                 Décharge
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <Switch
                 id="deload-toggle"
                 checked={isWeekDeload}
                 onCheckedChange={(checked) => toggleWeekDeloadMutation.mutate(checked)}
                 disabled={plannedWorkouts.length === 0}
               />
-              <label htmlFor="deload-toggle" className="text-sm font-medium cursor-pointer">
-                Semaine de décharge
+              <label htmlFor="deload-toggle" className="text-xs sm:text-sm font-medium cursor-pointer">
+                Décharge
               </label>
             </div>
-            <Button onClick={() => setCurrentWeek(new Date())}>
+            <Button 
+              onClick={() => setCurrentWeek(new Date())}
+              size="sm"
+              className="text-xs sm:text-sm"
+            >
               Aujourd'hui
             </Button>
           </div>
         </div>
 
-        {/* Calendrier */}
-        <Card>
-          <CardContent className="p-4">
+        {/* Calendrier - scrollable horizontalement sur mobile */}
+        <Card className="overflow-hidden">
+          <CardContent className="p-2 sm:p-4 overflow-x-auto">
             {/* En-têtes jours avec dates */}
-            <div className="grid grid-cols-7 gap-2 mb-3">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 sm:mb-3 min-w-[600px]">
               {days.map((day, idx) => (
-                <div key={idx} className="text-center space-y-1">
-                  <div className="text-xs font-medium text-muted-foreground">
+                <div key={idx} className="text-center space-y-0.5 sm:space-y-1">
+                  <div className="text-[10px] sm:text-xs font-medium text-muted-foreground">
                     {format(day, "EEE", { locale: fr })}
                   </div>
                   <div className={cn(
-                    "text-lg font-semibold",
+                    "text-sm sm:text-lg font-semibold",
                     isSameDay(day, new Date()) && "text-primary"
                   )}>
                     {format(day, "d")}
@@ -438,7 +483,7 @@ export default function Calendar() {
             </div>
 
             {/* Jours de la semaine avec créneaux */}
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 min-w-[600px]">
               {days.map((day, idx) => {
                 const activities = getActivitiesForDay(day);
                 const isToday = isSameDay(day, new Date());
@@ -447,12 +492,12 @@ export default function Calendar() {
                   <div
                     key={idx}
                     className={cn(
-                      "min-h-[200px] rounded-lg border transition-all",
+                      "min-h-[160px] sm:min-h-[200px] rounded-lg border transition-all",
                       isToday && "border-primary border-2 bg-accent/10"
                     )}
                   >
                     {/* Affichage des créneaux */}
-                    <div className="p-1 space-y-1">
+                    <div className="p-0.5 sm:p-1 space-y-0.5 sm:space-y-1">
                       {TIME_SLOTS.map(slot => {
                         const activity = activities.find(a => a.slot === slot.id);
                         
@@ -460,7 +505,7 @@ export default function Calendar() {
                           <div
                             key={slot.id}
                             className={cn(
-                              "p-1.5 rounded text-xs cursor-pointer transition-all group relative",
+                              "p-1 sm:p-1.5 rounded text-[10px] sm:text-xs cursor-pointer transition-all group relative",
                               activity 
                                 ? getStatusColor(activity.status)
                                 : "bg-background/50 hover:bg-accent/50 border border-dashed border-muted-foreground/20"
@@ -470,35 +515,42 @@ export default function Calendar() {
                             {activity ? (
                               <div className="space-y-0.5">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-[10px] opacity-70">{slot.icon} {slot.time}</span>
+                                  <span className="text-[8px] sm:text-[10px] opacity-70">{slot.icon}</span>
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    className="h-3 w-3 sm:h-4 sm:w-4 opacity-0 group-hover:opacity-100 transition-opacity"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (activity.type === "workout") {
                                         setDeleteWorkoutId(activity.id);
-                                      } else {
+                                      } else if (activity.type === "run") {
                                         setDeleteRunId(activity.id);
                                       }
+                                      // completed_run: pas de suppression directe depuis le calendrier
                                     }}
                                   >
-                                    <Trash2 className="h-3 w-3" />
+                                    {activity.type !== "completed_run" && <Trash2 className="h-2 w-2 sm:h-3 sm:w-3" />}
                                   </Button>
                                 </div>
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-0.5 sm:gap-1">
                                   {activity.type === "workout" ? (
                                     <>
-                                      <Dumbbell className="h-3 w-3 flex-shrink-0" />
-                                      <span className="font-medium line-clamp-1">{activity.name}</span>
+                                      <Dumbbell className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                                      <span className="font-medium line-clamp-1 text-[9px] sm:text-xs">{activity.name}</span>
+                                    </>
+                                  ) : activity.type === "completed_run" ? (
+                                    <>
+                                      <PersonStanding className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                                      <span className="font-medium text-[9px] sm:text-xs">
+                                        {activity.distance_km ? `${activity.distance_km}km` : "Run"}
+                                      </span>
                                     </>
                                   ) : (
                                     <>
-                                      <PersonStanding className="h-3 w-3 flex-shrink-0" />
-                                      <span className="font-medium">
+                                      <PersonStanding className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                                      <span className="font-medium text-[9px] sm:text-xs">
                                         {activity.target_distance_km ? `${activity.target_distance_km}km` : "Run"}
-                                        {activity.target_duration_minutes && ` ${activity.target_duration_minutes}min`}
                                       </span>
                                     </>
                                   )}
@@ -507,7 +559,7 @@ export default function Calendar() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-4 w-4 absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    className="h-3 w-3 sm:h-4 sm:w-4 absolute bottom-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setSelectedDate(day);
@@ -519,20 +571,20 @@ export default function Calendar() {
                                       setShowRunRecordDialog(true);
                                     }}
                                   >
-                                    <Play className="h-3 w-3" />
+                                    <Play className="h-2 w-2 sm:h-3 sm:w-3" />
                                   </Button>
                                 )}
                                 {activity.is_deload && (
-                                  <Badge variant="outline" className="text-[8px] px-1 py-0">
-                                    <TrendingDown className="h-2 w-2 mr-0.5" />
+                                  <Badge variant="outline" className="text-[6px] sm:text-[8px] px-0.5 sm:px-1 py-0">
+                                    <TrendingDown className="h-1.5 w-1.5 sm:h-2 sm:w-2 mr-0.5" />
                                     Décharge
                                   </Badge>
                                 )}
                               </div>
                             ) : (
-                              <div className="flex items-center justify-center gap-1 py-1 text-muted-foreground/50">
-                                <span className="text-[10px]">{slot.icon}</span>
-                                <Plus className="h-3 w-3" />
+                              <div className="flex items-center justify-center gap-0.5 py-0.5 sm:py-1 text-muted-foreground/50">
+                                <span className="text-[8px] sm:text-[10px]">{slot.icon}</span>
+                                <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
                               </div>
                             )}
                           </div>
@@ -546,32 +598,24 @@ export default function Calendar() {
           </CardContent>
         </Card>
 
-        {/* Légende */}
-        <div className="flex flex-wrap gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <Dumbbell className="h-4 w-4" />
-            <span>Musculation</span>
+        {/* Légende - compacte sur mobile */}
+        <div className="flex flex-wrap gap-2 sm:gap-4 text-[10px] sm:text-sm">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Dumbbell className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span>Muscu</span>
           </div>
-          <div className="flex items-center gap-2">
-            <PersonStanding className="h-4 w-4" />
+          <div className="flex items-center gap-1 sm:gap-2">
+            <PersonStanding className="h-3 w-3 sm:h-4 sm:w-4" />
             <span>Run</span>
           </div>
-          <div className="w-px h-4 bg-border" />
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-muted" />
+          <div className="w-px h-3 sm:h-4 bg-border" />
+          <div className="flex items-center gap-1 sm:gap-2">
+            <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-muted" />
             <span>Planifié</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-success" />
+          <div className="flex items-center gap-1 sm:gap-2">
+            <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-success" />
             <span>Réalisé</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-warning" />
-            <span>Ajusté</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-destructive" />
-            <span>Manqué</span>
           </div>
         </div>
 

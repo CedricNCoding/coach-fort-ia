@@ -34,9 +34,9 @@ serve(async (req) => {
     console.log("Génération de plan IA pour utilisateur:", user.id);
     console.log("Profil:", profile);
 
-    // Récupérer l'historique des 8 dernières semaines
-    const eightWeeksAgo = new Date();
-    eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
+    // Récupérer l'historique des 4 dernières semaines
+    const fourWeeksAgo = new Date();
+    fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
 
     const { data: recentSessions, error: sessionsError } = await supabase
       .from("sessions")
@@ -51,7 +51,7 @@ serve(async (req) => {
       `)
       .eq("user_id", user.id)
       .eq("status", "completed")
-      .gte("started_at", eightWeeksAgo.toISOString())
+      .gte("started_at", fourWeeksAgo.toISOString())
       .order("started_at", { ascending: false });
 
     if (sessionsError) {
@@ -203,7 +203,7 @@ PROFIL :
     // Ajouter l'historique des sessions si disponible
     if (recentSessions && recentSessions.length > 0 && sessionSets.length > 0) {
       // Calculer les statistiques à partir des sessions
-      const totalWeeks = 8;
+      const totalWeeks = 4;
       const avgSessionsPerWeek = (recentSessions.length / totalWeeks).toFixed(1);
       const avgWeeklyVolume = (
         recentSessions.reduce((sum, s) => sum + (s.total_tonnage || 0), 0) / totalWeeks
@@ -253,7 +253,7 @@ PROFIL :
         }))
         .sort((a, b) => parseFloat(b.avg_weekly_sets) - parseFloat(a.avg_weekly_sets));
 
-      userPrompt += `HISTORIQUE DES 8 DERNIÈRES SEMAINES :
+      userPrompt += `HISTORIQUE DES 4 DERNIÈRES SEMAINES :
 - Nombre de séances réalisées : ${recentSessions.length} (moyenne ${avgSessionsPerWeek}/semaine)
 - Volume total moyen/semaine : ${avgWeeklyVolume} kg
 

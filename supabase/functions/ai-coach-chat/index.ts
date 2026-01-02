@@ -73,14 +73,14 @@ serve(async (req) => {
       }
     });
 
-    // 5. Construire la liste des exercices avec préférences
+    // 5. Construire la liste des exercices avec préférences ET IDs
     const prefsMap = new Map((exercisePreferences || []).map(p => [p.exercise_id, p.preference]));
     const exercisesWithPrefs = filteredExercises.map((ex) => {
       const pref = prefsMap.get(ex.id);
       let prefLabel = "";
       if (pref === "loved") prefLabel = " [ADORE]";
       else if (pref === "disliked") prefLabel = " [DETESTE]";
-      return `- ${ex.name} (${ex.muscle_group || "Autre"}, ${ex.equipment || "Aucun"})${prefLabel}`;
+      return `- ID:${ex.id} - ${ex.name} (${ex.muscle_group || "Autre"}, ${ex.equipment || "Aucun"})${prefLabel}`;
     });
 
     // 6. Récupérer le programme de la semaine en cours
@@ -225,12 +225,14 @@ PROFIL UTILISATEUR:
     // Construire le prompt système
     const systemPrompt = `Tu es un coach de musculation expert et bienveillant. Tu connais très bien l'utilisateur grâce à son historique et son profil.
 
-RÈGLES IMPORTANTES:
-1. Tu dois UNIQUEMENT proposer des exercices de la liste "EXERCICES DISPONIBLES" ci-dessous
-2. Privilégie les exercices marqués [ADORE]
-3. Évite les exercices marqués [DETESTE] sauf nécessité absolue
-4. Respecte l'environnement d'entraînement de l'utilisateur
-5. Adapte tes propositions au niveau et aux contraintes
+RÈGLES CRITIQUES:
+1. Tu dois UNIQUEMENT utiliser les exercise_id de la liste "EXERCICES DISPONIBLES" ci-dessous
+2. IMPORTANT: Chaque exercice a un ID (format "ID:123"). Tu DOIS utiliser cet ID exact dans exercise_id
+3. NE JAMAIS inventer d'ID - utilise SEULEMENT les IDs listés
+4. Privilégie les exercices marqués [ADORE]
+5. Évite les exercices marqués [DETESTE] sauf nécessité absolue
+6. Respecte l'environnement d'entraînement de l'utilisateur
+7. Adapte tes propositions au niveau et aux contraintes
 
 RÈGLES DE PROGRESSION:
 - Augmenter de 2.5% si l'utilisateur atteint le haut de sa fourchette de reps

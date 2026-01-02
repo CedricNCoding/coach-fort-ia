@@ -1,12 +1,22 @@
+import { useState } from "react";
 import Layout from "@/components/Layout";
 import { WeekProgramView } from "@/components/coach/WeekProgramView";
 import { ChatInterface } from "@/components/coach/ChatInterface";
+import { SessionParameters, SessionParams } from "@/components/coach/SessionParameters";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, Calendar } from "lucide-react";
+import { Brain, Calendar, Settings2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function CoachChat() {
   const isMobile = useIsMobile();
+  
+  const [sessionParams, setSessionParams] = useState<SessionParams>({
+    daysToSchedule: 4,
+    sessionDuration: 60,
+    exercisesPerSession: 8,
+    forceSupersets: false,
+    isDeload: false
+  });
 
   if (isMobile) {
     // Vue mobile avec tabs
@@ -15,6 +25,10 @@ export default function CoachChat() {
         <div className="h-[calc(100vh-4rem)] flex flex-col">
           <Tabs defaultValue="chat" className="flex-1 flex flex-col">
             <TabsList className="mx-4 mt-4">
+              <TabsTrigger value="params" className="gap-2">
+                <Settings2 className="h-4 w-4" />
+                Paramètres
+              </TabsTrigger>
               <TabsTrigger value="program" className="gap-2">
                 <Calendar className="h-4 w-4" />
                 Programme
@@ -25,12 +39,16 @@ export default function CoachChat() {
               </TabsTrigger>
             </TabsList>
             
+            <TabsContent value="params" className="flex-1 p-4 overflow-auto">
+              <SessionParameters params={sessionParams} onChange={setSessionParams} />
+            </TabsContent>
+            
             <TabsContent value="program" className="flex-1 p-4 overflow-auto">
               <WeekProgramView />
             </TabsContent>
             
             <TabsContent value="chat" className="flex-1 flex flex-col min-h-0">
-              <ChatInterface />
+              <ChatInterface sessionParams={sessionParams} />
             </TabsContent>
           </Tabs>
         </div>
@@ -42,8 +60,10 @@ export default function CoachChat() {
   return (
     <Layout>
       <div className="h-[calc(100vh-4rem)] flex">
-        {/* Colonne gauche : Programme */}
+        {/* Colonne gauche : Paramètres + Programme */}
         <div className="w-[350px] border-r p-4 overflow-auto">
+          <SessionParameters params={sessionParams} onChange={setSessionParams} />
+          
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Calendar className="h-5 w-5" />
             Cette semaine
@@ -62,7 +82,7 @@ export default function CoachChat() {
               Discute avec ton coach pour créer ou modifier ton programme
             </p>
           </div>
-          <ChatInterface />
+          <ChatInterface sessionParams={sessionParams} />
         </div>
       </div>
     </Layout>

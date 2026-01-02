@@ -29,8 +29,8 @@ serve(async (req) => {
       });
     }
 
-    const { message } = await req.json();
-    console.log("Message reçu:", message);
+    const { message, sessionParams } = await req.json();
+    console.log("Message reçu:", message, "Params:", sessionParams);
 
     // 1. Récupérer le profil utilisateur avec training_environment
     const { data: profile } = await supabase
@@ -222,6 +222,30 @@ PROFIL UTILISATEUR:
       ? `\nTEMPLATES EXISTANTS:\n${templates.map(t => `- ${t.name} (${t.goal || "pas d'objectif"})`).join("\n")}`
       : "";
 
+    // Contexte des paramètres de session demandés par l'utilisateur
+    const daysToSchedule = sessionParams?.daysToSchedule || profile?.sessions_per_week || 4;
+    const sessionDuration = sessionParams?.sessionDuration || profile?.session_duration_minutes || 60;
+    const exercisesPerSession = sessionParams?.exercisesPerSession || 8;
+    const forceSupersets = sessionParams?.forceSupersets || false;
+    const isDeloadMode = sessionParams?.isDeload || false;
+
+    const sessionParamsContext = `
+PARAMÈTRES DE SÉANCE DEMANDÉS:
+- Jours à planifier: ${daysToSchedule}
+- Durée par séance: ${sessionDuration} min
+- Exercices par séance: ${exercisesPerSession}
+- Supersets: ${forceSupersets ? "OBLIGATOIRES" : "Optionnels"}
+- Mode deload: ${isDeloadMode ? "ACTIVÉ (réduire charges de 25%)" : "Non"}`;
+
+    const supersetRules = `
+RÈGLES DE SUPERSETS:
+- Organiser les exercices en paires (A1/A2, B1/B2, C1/C2, etc.)
+- Privilégier les pairings antagonistes : Pecs ↔ Dos, Biceps ↔ Triceps, Quads ↔ Ischios, Épaules avant ↔ Épaules arrière
+- Maximum 2 exercices par superset
+- Ajouter "superset_group": "A", "B", "C"... pour chaque exercice dans create_week_plan
+- Si supersets ${forceSupersets ? "OBLIGATOIRES" : "optionnels"}: ${forceSupersets ? "TOUS les exercices doivent être en superset" : "utiliser si approprié pour optimiser le temps"}
+- Exemple: A1=Développé couché, A2=Rowing barre, B1=Incliné haltères, B2=Tirage vertical`;
+
     // Construire le prompt système
     const systemPrompt = `Tu es un coach de musculation expert et bienveillant. Tu connais très bien l'utilisateur grâce à son historique et son profil.
 
@@ -233,6 +257,9 @@ RÈGLES CRITIQUES:
 5. Évite les exercices marqués [DETESTE] sauf nécessité absolue
 6. Respecte l'environnement d'entraînement de l'utilisateur
 7. Adapte tes propositions au niveau et aux contraintes
+8. RESPECTE LES PARAMÈTRES DE SÉANCE demandés par l'utilisateur
+
+${supersetRules}
 
 RÈGLES DE PROGRESSION:
 - Augmenter de 2.5% si l'utilisateur atteint le haut de sa fourchette de reps
@@ -256,7 +283,7 @@ Tu dois répondre en JSON avec cette structure exacte:
 }
 
 TYPES D'ACTIONS:
-- create_week_plan: { "sessions": [{ "name": "...", "date": "YYYY-MM-DD", "goal": "...", "exercises": [{ "exercise_id": N, "exercise_name": "...", "target_sets": N, "target_reps_min": N, "target_reps_max": N, "target_weight_kg": N }] }] }
+- create_week_plan: { "sessions": [{ "name": "...", "date": "YYYY-MM-DD", "goal": "...", "exercises": [{ "exercise_id": N, "exercise_name": "...", "superset_group": "A"|"B"|"C"|null, "target_sets": N, "target_reps_min": N, "target_reps_max": N, "target_weight_kg": N }] }] }
 - create_session: { "name": "...", "date": "YYYY-MM-DD", "exercises": [...] }
 - move_session: { "plannedWorkoutId": N, "newDate": "YYYY-MM-DD" }
 - modify_exercise: { "templateExerciseId": N, "updates": { "target_sets": N, "target_weight_kg": N } }
@@ -265,6 +292,7 @@ TYPES D'ACTIONS:
 - create_deload: { "sessions": [{ "date": "YYYY-MM-DD", "workoutTemplateId": N }], "deloadFactor": 0.75 }
 
 Si tu n'as pas d'action à proposer, mets un tableau vide pour proposed_actions.
+${sessionParamsContext}
 
 EXERCICES DISPONIBLES (${exercisesWithPrefs.length}):
 ${exercisesWithPrefs.slice(0, 100).join("\n")}

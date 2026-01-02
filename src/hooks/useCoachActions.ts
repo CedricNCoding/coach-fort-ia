@@ -35,6 +35,37 @@ export function useCoachActions() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Non authentifié");
 
+      // Vérifier que tous les exercices existent avant de commencer
+      const allExerciseIds = sessions.flatMap(s => s.exercises.map(e => e.exercise_id));
+      const uniqueExerciseIds = [...new Set(allExerciseIds)];
+      
+      const { data: existingExercises, error: exercisesCheckError } = await supabase
+        .from("exercises")
+        .select("id")
+        .in("id", uniqueExerciseIds);
+      
+      if (exercisesCheckError) throw exercisesCheckError;
+      
+      const existingIds = new Set(existingExercises?.map(e => e.id) || []);
+      const missingIds = uniqueExerciseIds.filter(id => !existingIds.has(id));
+      
+      if (missingIds.length > 0) {
+        throw new Error(`Exercices non trouvés: ${missingIds.join(", ")}`);
+      }
+
+      // Supprimer les planned_workouts existants pour ces dates (pour éviter les doublons)
+      const dates = sessions.map(s => s.date);
+      const { error: deleteError } = await supabase
+        .from("planned_workouts")
+        .delete()
+        .eq("user_id", user.id)
+        .in("date", dates)
+        .eq("slot", 1);
+      
+      if (deleteError) {
+        console.warn("Erreur suppression workouts existants:", deleteError);
+      }
+
       const createdTemplates: number[] = [];
 
       for (const session of sessions) {
@@ -53,9 +84,11 @@ export function useCoachActions() {
         if (templateError) throw templateError;
         createdTemplates.push(template.id);
 
-        // 2. Créer les exercices du template
-        if (session.exercises && session.exercises.length > 0) {
-          const templateExercises = session.exercises.map((ex, index) => ({
+        // 2. Créer les exercices du template (filtrer ceux qui existent)
+        const validExercises = session.exercises.filter(ex => existingIds.has(ex.exercise_id));
+        
+        if (validExercises.length > 0) {
+          const templateExercises = validExercises.map((ex, index) => ({
             workout_template_id: template.id,
             exercise_id: ex.exercise_id,
             order_index: index,

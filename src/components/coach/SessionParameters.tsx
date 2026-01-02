@@ -73,7 +73,7 @@ export function SessionParameters({ params, onChange }: SessionParametersProps) 
             value={[params.exercisesPerSession]}
             onValueChange={([v]) => updateParam("exercisesPerSession", v)}
             min={4}
-            max={12}
+            max={18}
             step={1}
             className="w-full"
           />

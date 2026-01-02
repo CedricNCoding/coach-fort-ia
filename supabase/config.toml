@@ -29,3 +29,6 @@ verify_jwt = true
 
 [functions.ai-weekly-coach-review]
 verify_jwt = true
+
+[functions.ai-coach-chat]
+verify_jwt = true

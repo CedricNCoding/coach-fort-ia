@@ -26,6 +26,7 @@ interface TemplateExercise {
   target_reps_max: number | null;
   target_weight_kg: number | null;
   target_rest_seconds: number | null;
+  superset_group: string | null;
   exercise: {
     id: number;
     name: string;
@@ -92,6 +93,7 @@ export function PlannedWorkoutDetailDialog({
           target_reps_max,
           target_weight_kg,
           target_rest_seconds,
+          superset_group,
           exercise:exercises(id, name, muscle_group)
         `)
         .eq("workout_template_id", plannedWorkout.workout_template.id)
@@ -281,16 +283,21 @@ export function PlannedWorkoutDetailDialog({
                       ) : (
                         // Mode affichage
                         <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">{index + 1}.</span>
-                              <span className="font-medium">{exercise.exercise?.name}</span>
-                              {exercise.exercise?.muscle_group && (
-                                <Badge variant="outline" className="text-xs">
-                                  {exercise.exercise.muscle_group}
-                                </Badge>
-                              )}
-                            </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            {exercise.superset_group && (
+                              <Badge variant="default" className="text-xs px-1.5 py-0">
+                                {exercise.superset_group}
+                              </Badge>
+                            )}
+                            <span className="text-xs text-muted-foreground">{index + 1}.</span>
+                            <span className="font-medium">{exercise.exercise?.name}</span>
+                            {exercise.exercise?.muscle_group && (
+                              <Badge variant="outline" className="text-xs">
+                                {exercise.exercise.muscle_group}
+                              </Badge>
+                            )}
+                          </div>
                             <div className="text-sm text-muted-foreground mt-1">
                               {exercise.target_sets}×{exercise.target_reps_min}-{exercise.target_reps_max} reps
                               {exercise.target_weight_kg && ` @ ${exercise.target_weight_kg}kg`}

@@ -7,10 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, ChevronRight, Plus, Trash2, TrendingDown, Play, Dumbbell, PersonStanding } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, TrendingDown, Play, Dumbbell, PersonStanding, Eye } from "lucide-react";
 import { format, isSameDay, startOfWeek, endOfWeek, addWeeks, subWeeks, eachDayOfInterval } from "date-fns";
 import { RunPlanDialog } from "@/components/RunPlanDialog";
 import { RunRecordDialog } from "@/components/RunRecordDialog";
+import { PlannedWorkoutDetailDialog } from "@/components/PlannedWorkoutDetailDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,7 @@ export default function Calendar() {
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
   const [pendingActivity, setPendingActivity] = useState<{ date: string; slot: number; template_id?: number } | null>(null);
   const [existingActivityToOverwrite, setExistingActivityToOverwrite] = useState<SlotActivity | null>(null);
+  const [viewWorkoutId, setViewWorkoutId] = useState<number | null>(null);
 
   // Charger les séances planifiées de la semaine
   const weekStart = startOfWeek(currentWeek, { locale: fr });
@@ -534,25 +536,48 @@ export default function Calendar() {
                                 <div className="space-y-0.5">
                                   <div className="flex items-center justify-between">
                                     <span className="text-[10px] opacity-70">{slot.icon} {slot.time}</span>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (activity.type === "workout") {
-                                          setDeleteWorkoutId(activity.id);
-                                        } else if (activity.type === "run") {
-                                          setDeleteRunId(activity.id);
-                                        } else if (activity.type === "completed_run") {
-                                          setDeleteCompletedRunId(activity.id);
-                                        }
-                                      }}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
+                                    <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+                                      {activity.type === "workout" && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-4 w-4"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setViewWorkoutId(activity.id);
+                                          }}
+                                        >
+                                          <Eye className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-4 w-4"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (activity.type === "workout") {
+                                            setDeleteWorkoutId(activity.id);
+                                          } else if (activity.type === "run") {
+                                            setDeleteRunId(activity.id);
+                                          } else if (activity.type === "completed_run") {
+                                            setDeleteCompletedRunId(activity.id);
+                                          }
+                                        }}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-1">
+                                  <div 
+                                    className="flex items-center gap-1 cursor-pointer"
+                                    onClick={(e) => {
+                                      if (activity.type === "workout") {
+                                        e.stopPropagation();
+                                        setViewWorkoutId(activity.id);
+                                      }
+                                    }}
+                                  >
                                     {activity.type === "workout" ? (
                                       <>
                                         <Dumbbell className="h-3 w-3 flex-shrink-0" />
@@ -642,6 +667,11 @@ export default function Calendar() {
                                 "flex items-center justify-between p-2 rounded",
                                 getStatusColor(activity.status)
                               )}
+                              onClick={() => {
+                                if (activity.type === "workout") {
+                                  setViewWorkoutId(activity.id);
+                                }
+                              }}
                             >
                               <div className="flex items-center gap-2">
                                 <span className="text-xs opacity-70">{slotInfo?.icon}</span>
@@ -668,22 +698,38 @@ export default function Calendar() {
                                   </Badge>
                                 )}
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => {
-                                  if (activity.type === "workout") {
-                                    setDeleteWorkoutId(activity.id);
-                                  } else if (activity.type === "run") {
-                                    setDeleteRunId(activity.id);
-                                  } else if (activity.type === "completed_run") {
-                                    setDeleteCompletedRunId(activity.id);
-                                  }
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <div className="flex gap-1">
+                                {activity.type === "workout" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setViewWorkoutId(activity.id);
+                                    }}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (activity.type === "workout") {
+                                      setDeleteWorkoutId(activity.id);
+                                    } else if (activity.type === "run") {
+                                      setDeleteRunId(activity.id);
+                                    } else if (activity.type === "completed_run") {
+                                      setDeleteCompletedRunId(activity.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
                           );
                         })
@@ -948,6 +994,14 @@ export default function Calendar() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Dialog détails séance */}
+        <PlannedWorkoutDetailDialog
+          open={!!viewWorkoutId}
+          onOpenChange={(open) => !open && setViewWorkoutId(null)}
+          plannedWorkoutId={viewWorkoutId}
+          onDelete={() => viewWorkoutId && setDeleteWorkoutId(viewWorkoutId)}
+        />
       </div>
     </Layout>
   );

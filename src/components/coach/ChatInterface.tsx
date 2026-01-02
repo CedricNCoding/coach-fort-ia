@@ -39,7 +39,21 @@ export function ChatInterface() {
     }
   });
 
-  const messages: ChatMessage[] = (conversation?.messages as unknown as ChatMessage[]) || [];
+  // Parse messages from JSON string if needed
+  const messages: ChatMessage[] = (() => {
+    if (!conversation?.messages) return [];
+    if (typeof conversation.messages === "string") {
+      try {
+        return JSON.parse(conversation.messages) as ChatMessage[];
+      } catch {
+        return [];
+      }
+    }
+    if (Array.isArray(conversation.messages)) {
+      return conversation.messages as unknown as ChatMessage[];
+    }
+    return [];
+  })();
 
   // Scroll automatique vers le bas
   useEffect(() => {

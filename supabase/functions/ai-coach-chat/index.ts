@@ -142,8 +142,10 @@ serve(async (req) => {
       .gte("started_at", eightWeeksAgo.toISOString())
       .order("started_at", { ascending: false });
 
-    // 8. Récupérer les sets des sessions récentes
+    // 8. Récupérer les sets des sessions récentes avec dates
     const sessionIds = (recentSessions || []).map(s => s.id);
+    const sessionDatesMap = new Map((recentSessions || []).map(s => [s.id, s.started_at]));
+    
     const { data: sessionSets } = sessionIds.length > 0 
       ? await supabase
           .from("session_sets")
@@ -151,24 +153,170 @@ serve(async (req) => {
             id,
             session_id,
             exercise_id,
+            template_exercise_id,
             set_index,
             reps,
             weight_kg,
             perceived_difficulty,
             pain,
+            is_warmup,
             exercise:exercise_id (name, muscle_group)
           `)
           .in("session_id", sessionIds)
+          .eq("is_warmup", 0)
       : { data: [] };
 
-    // 9. Récupérer la mémoire du coach
+    // 9. Calculer les progressions par exercice
+    interface ExerciseProgression {
+      exerciseId: number;
+      exerciseName: string;
+      muscleGroup: string;
+      sessions: {
+        date: string;
+        sets: number;
+        bestReps: number;
+        bestWeight: number;
+        avgDifficulty: number;
+        hadPain: boolean;
+      }[];
+      trend: "PROGRESSION" | "STAGNATION" | "REGRESSION" | "NOUVEAU";
+      recommendedWeight: number;
+      recommendedNote: string;
+    }
+
+    const exerciseProgressions: Map<number, ExerciseProgression> = new Map();
+    
+    // Grouper les sets par exercice et session
+    for (const set of (sessionSets || [])) {
+      const exerciseId = set.exercise_id;
+      const sessionDate = sessionDatesMap.get(set.session_id) || "";
+      const exerciseData = set.exercise as any;
+      
+      if (!exerciseProgressions.has(exerciseId)) {
+        exerciseProgressions.set(exerciseId, {
+          exerciseId,
+          exerciseName: exerciseData?.name || "Inconnu",
+          muscleGroup: exerciseData?.muscle_group || "",
+          sessions: [],
+          trend: "NOUVEAU",
+          recommendedWeight: 0,
+          recommendedNote: ""
+        });
+      }
+      
+      const prog = exerciseProgressions.get(exerciseId)!;
+      const dateStr = sessionDate.split("T")[0];
+      
+      // Trouver ou créer la session pour cette date
+      let sessionEntry = prog.sessions.find(s => s.date === dateStr);
+      if (!sessionEntry) {
+        sessionEntry = {
+          date: dateStr,
+          sets: 0,
+          bestReps: 0,
+          bestWeight: 0,
+          avgDifficulty: 0,
+          hadPain: false
+        };
+        prog.sessions.push(sessionEntry);
+      }
+      
+      sessionEntry.sets++;
+      sessionEntry.bestReps = Math.max(sessionEntry.bestReps, set.reps);
+      sessionEntry.bestWeight = Math.max(sessionEntry.bestWeight, Number(set.weight_kg));
+      sessionEntry.avgDifficulty = (sessionEntry.avgDifficulty * (sessionEntry.sets - 1) + (set.perceived_difficulty || 7)) / sessionEntry.sets;
+      if (set.pain === 1) sessionEntry.hadPain = true;
+    }
+
+    // Calculer les tendances et recommandations
+    for (const [exerciseId, prog] of exerciseProgressions) {
+      // Trier par date décroissante
+      prog.sessions.sort((a, b) => b.date.localeCompare(a.date));
+      
+      if (prog.sessions.length === 0) {
+        prog.trend = "NOUVEAU";
+        prog.recommendedNote = "Nouvel exercice - commencer léger";
+        continue;
+      }
+      
+      const latest = prog.sessions[0];
+      const previous = prog.sessions[1];
+      
+      // Calculer tendance
+      if (!previous) {
+        prog.trend = "NOUVEAU";
+        prog.recommendedWeight = latest.bestWeight;
+        prog.recommendedNote = "Première séance enregistrée";
+      } else {
+        const weightChange = ((latest.bestWeight - previous.bestWeight) / previous.bestWeight) * 100;
+        
+        if (weightChange > 2) {
+          prog.trend = "PROGRESSION";
+        } else if (weightChange < -2) {
+          prog.trend = "REGRESSION";
+        } else {
+          prog.trend = "STAGNATION";
+        }
+      }
+      
+      // Calculer recommandation basée sur les règles déterministes
+      const lastWeight = latest.bestWeight;
+      const lastReps = latest.bestReps;
+      const lastDiff = latest.avgDifficulty;
+      const hadPain = latest.hadPain;
+      
+      // Fourchette standard 6-12 reps
+      const repsMin = 6;
+      const repsMax = 12;
+      
+      if (hadPain || lastDiff >= 9) {
+        // Douleur ou trop difficile: réduire
+        prog.recommendedWeight = Math.round(lastWeight * 0.95 * 2) / 2;
+        prog.recommendedNote = hadPain 
+          ? `Réduire à ${prog.recommendedWeight}kg (douleur signalée)` 
+          : `Réduire à ${prog.recommendedWeight}kg (difficulté ${lastDiff.toFixed(1)}/10)`;
+      } else if (lastReps >= repsMax) {
+        // Atteint le haut du rep range: augmenter
+        prog.recommendedWeight = Math.round(lastWeight * 1.025 * 2) / 2;
+        prog.recommendedNote = `Augmenter à ${prog.recommendedWeight}kg (${lastReps} reps atteintes)`;
+      } else if (lastReps >= repsMin) {
+        // Dans le rep range: maintenir
+        prog.recommendedWeight = lastWeight;
+        prog.recommendedNote = `Maintenir ${lastWeight}kg, pousser vers ${repsMax} reps`;
+      } else {
+        // Sous le rep range: réduire
+        prog.recommendedWeight = Math.round(lastWeight * 0.95 * 2) / 2;
+        prog.recommendedNote = `Réduire à ${prog.recommendedWeight}kg (seulement ${lastReps} reps)`;
+      }
+    }
+
+    // Formater la section progression
+    const progressionEntries = Array.from(exerciseProgressions.values())
+      .filter(p => p.sessions.length > 0)
+      .sort((a, b) => b.sessions.length - a.sessions.length)
+      .slice(0, 20); // Top 20 exercices les plus pratiqués
+
+    const progressionContext = progressionEntries.length > 0
+      ? `\nPROGRESSION PAR EXERCICE (${progressionEntries.length} exercices récents):\n` + 
+        progressionEntries.map(p => {
+          const latest = p.sessions[0];
+          const history = p.sessions.slice(0, 3).map(s => 
+            `  ${s.date}: ${s.sets}x${s.bestReps} @ ${s.bestWeight}kg, diff ${s.avgDifficulty.toFixed(1)}/10${s.hadPain ? " ⚠️DOULEUR" : ""}`
+          ).join("\n");
+          return `\n${p.exerciseName} (${p.muscleGroup}) - ${p.trend}:
+${history}
+  → Recommandation: ${p.recommendedNote}`;
+        }).join("\n")
+      : "";
+
+    // 10. Récupérer la mémoire du coach
     const { data: memory } = await supabase
       .from("ai_coach_memory")
       .select("memory_content")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    // 10. Récupérer les templates existants
+    // 11. Récupérer les templates existants
     const { data: existingTemplates } = await supabase
       .from("workout_templates")
       .select("id, name, goal")
@@ -207,7 +355,7 @@ PROFIL UTILISATEUR:
     // Statistiques historique
     const sessions = recentSessions || [];
     const historyStats = sessions.length > 0 
-      ? `\nHISTORIQUE (8 semaines):
+      ? `\nHISTORIQUE GLOBAL (8 semaines):
 - Séances complétées: ${sessions.length}
 - Volume moyen/séance: ${Math.round((sessions.reduce((sum, s) => sum + (s.total_tonnage || 0), 0) / sessions.length))} kg
 - Difficulté moyenne: ${(sessions.reduce((sum, s) => sum + (s.avg_difficulty || 0), 0) / sessions.length).toFixed(1)}/10`
@@ -262,11 +410,15 @@ RÈGLES CRITIQUES:
 ${supersetRules}
 
 RÈGLES DE PROGRESSION:
-- Augmenter de 2.5% si l'utilisateur atteint le haut de sa fourchette de reps
-- Maintenir si dans la fourchette
-- Réduire de 5% si sous la fourchette ou difficulté > 8
+- UTILISE les données de "PROGRESSION PAR EXERCICE" pour proposer des charges adaptées
+- Si un exercice a des données historiques, reprends la charge recommandée
+- Augmenter de 2.5% si l'utilisateur atteint le haut de sa fourchette de reps (≥12 reps)
+- Maintenir si dans la fourchette (6-11 reps)
+- Réduire de 5% si sous la fourchette (<6 reps) ou difficulté > 8/10
+- Réduire de 5% si DOULEUR signalée
 - Ne jamais proposer plus de +5% par séance
 - Proposer un deload après 4-6 semaines intensives ou si fatigue accumulée
+- Pour les nouveaux exercices sans historique, estimer basé sur des exercices similaires
 
 FORMAT DE RÉPONSE:
 Tu dois répondre en JSON avec cette structure exacte:
@@ -300,6 +452,7 @@ ${exercisesWithPrefs.length > 100 ? `\n... et ${exercisesWithPrefs.length - 100}
 ${profileContext}
 ${weekProgramContext}
 ${historyStats}
+${progressionContext}
 ${templatesContext}
 ${memoryContext}
 

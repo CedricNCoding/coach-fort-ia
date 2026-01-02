@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { ProposedActionCard } from "./ProposedActionCard";
 import { ProposedAction } from "@/hooks/useCoachActions";
 import { useToast } from "@/hooks/use-toast";
+import { SessionParams } from "./SessionParameters";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -18,7 +19,11 @@ interface ChatMessage {
   timestamp: string;
 }
 
-export function ChatInterface() {
+interface ChatInterfaceProps {
+  sessionParams?: SessionParams;
+}
+
+export function ChatInterface({ sessionParams }: ChatInterfaceProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [input, setInput] = useState("");
@@ -102,9 +107,9 @@ export function ChatInterface() {
           }]);
       }
 
-      // Appeler l'edge function
+      // Appeler l'edge function avec les paramètres de session
       const { data, error } = await supabase.functions.invoke("ai-coach-chat", {
-        body: { message }
+        body: { message, sessionParams }
       });
 
       if (error) throw error;

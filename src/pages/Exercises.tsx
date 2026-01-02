@@ -10,14 +10,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Download, Upload, Pencil, Trash2, Search, FileText } from "lucide-react";
+import { Plus, Download, Upload, Pencil, Trash2, Search, FileText, Heart, X } from "lucide-react";
 import { parseExercisesCSV, generateCSVTemplate, downloadCSV } from "@/lib/csv-import";
+import { cn } from "@/lib/utils";
 
 export default function Exercises() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filterMuscle, setFilterMuscle] = useState<string>("all");
+  const [filterPreference, setFilterPreference] = useState<string>("all");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingExercise, setEditingExercise] = useState<any>(null);
 
@@ -44,6 +46,69 @@ export default function Exercises() {
       
       if (error) throw error;
       return data;
+    }
+  });
+
+  // Charger les préférences utilisateur
+  const { data: preferences = [] } = useQuery({
+    queryKey: ["exercise_preferences"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_exercise_preferences")
+        .select("exercise_id, preference");
+      
+      if (error && error.code !== "PGRST116") throw error;
+      return data || [];
+    }
+  });
+
+  // Map des préférences pour accès rapide
+  const preferencesMap = new Map(preferences.map(p => [p.exercise_id, p.preference]));
+
+  // Mutation pour les préférences
+  const setPreferenceMutation = useMutation({
+    mutationFn: async ({ exerciseId, preference }: { exerciseId: number; preference: string | null }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Non authentifié");
+
+      if (preference === null) {
+        // Supprimer la préférence (neutre)
+        await supabase
+          .from("user_exercise_preferences")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("exercise_id", exerciseId);
+      } else {
+        // Check if exists
+        const { data: existing } = await supabase
+          .from("user_exercise_preferences")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("exercise_id", exerciseId)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase
+            .from("user_exercise_preferences")
+            .update({ preference })
+            .eq("user_id", user.id)
+            .eq("exercise_id", exerciseId);
+        } else {
+          await supabase
+            .from("user_exercise_preferences")
+            .insert([{ user_id: user.id, exercise_id: exerciseId, preference }]);
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["exercise_preferences"] });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: error instanceof Error ? error.message : "Erreur"
+      });
     }
   });
 
@@ -288,7 +353,15 @@ export default function Exercises() {
     const matchSearch = ex.name.toLowerCase().includes(search.toLowerCase()) ||
                        (ex.muscle_group || "").toLowerCase().includes(search.toLowerCase());
     const matchMuscle = filterMuscle === "all" || ex.muscle_group === filterMuscle;
-    return matchSearch && matchMuscle;
+    
+    // Filtre par préférence
+    const pref = preferencesMap.get(ex.id);
+    const matchPreference = filterPreference === "all" ||
+                           (filterPreference === "loved" && pref === "loved") ||
+                           (filterPreference === "disliked" && pref === "disliked") ||
+                           (filterPreference === "neutral" && !pref);
+    
+    return matchSearch && matchMuscle && matchPreference;
   });
 
   const muscleGroups = Array.from(new Set(exercises.map(e => e.muscle_group).filter(Boolean))) as string[];
@@ -439,8 +512,8 @@ export default function Exercises() {
         </div>
 
         {/* Filtres */}
-        <div className="flex gap-4">
-          <div className="flex-1 relative">
+        <div className="flex gap-4 flex-wrap">
+          <div className="flex-1 relative min-w-[200px]">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Rechercher un exercice..."
@@ -450,7 +523,7 @@ export default function Exercises() {
             />
           </div>
           <Select value={filterMuscle} onValueChange={setFilterMuscle}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -458,6 +531,17 @@ export default function Exercises() {
               {muscleGroups.map(group => (
                 <SelectItem key={group} value={group}>{group}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterPreference} onValueChange={setFilterPreference}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes préf.</SelectItem>
+              <SelectItem value="loved">❤️ Adorés</SelectItem>
+              <SelectItem value="disliked">❌ Détestés</SelectItem>
+              <SelectItem value="neutral">😐 Neutres</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -481,26 +565,71 @@ export default function Exercises() {
                         <CardDescription>{exercise.muscle_group}</CardDescription>
                       )}
                     </div>
-                    {exercise.is_builtin === 0 && (
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleEdit(exercise)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => deleteMutation.mutate(exercise.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex gap-1">
+                      {/* Boutons de préférence */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-8 w-8",
+                          preferencesMap.get(exercise.id) === "loved" 
+                            ? "text-red-500 bg-red-500/10" 
+                            : "text-muted-foreground hover:text-red-500"
+                        )}
+                        onClick={() => {
+                          const current = preferencesMap.get(exercise.id);
+                          setPreferenceMutation.mutate({
+                            exerciseId: exercise.id,
+                            preference: current === "loved" ? null : "loved"
+                          });
+                        }}
+                        title="J'adore cet exercice"
+                      >
+                        <Heart className={cn("h-4 w-4", preferencesMap.get(exercise.id) === "loved" && "fill-current")} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-8 w-8",
+                          preferencesMap.get(exercise.id) === "disliked" 
+                            ? "text-orange-500 bg-orange-500/10" 
+                            : "text-muted-foreground hover:text-orange-500"
+                        )}
+                        onClick={() => {
+                          const current = preferencesMap.get(exercise.id);
+                          setPreferenceMutation.mutate({
+                            exerciseId: exercise.id,
+                            preference: current === "disliked" ? null : "disliked"
+                          });
+                        }}
+                        title="Je déteste cet exercice"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                      
+                      {/* Boutons d'édition (seulement pour les exercices custom) */}
+                      {exercise.is_builtin === 0 && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleEdit(exercise)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => deleteMutation.mutate(exercise.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="text-sm space-y-1">

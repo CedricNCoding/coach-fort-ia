@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
-import { Brain, Loader2 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Brain, Loader2, Dumbbell, Home, Building2 } from "lucide-react";
 
 /**
  * Page Réglages IA
@@ -24,6 +25,7 @@ export default function AISettings() {
     user_role: "",
     user_needs: ""
   });
+  const [trainingEnvironment, setTrainingEnvironment] = useState<string>("gym");
 
   // Charger les paramètres actuels
   const { data: settings, isLoading } = useQuery({
@@ -48,6 +50,64 @@ export default function AISettings() {
       }
       
       return data;
+    }
+  });
+
+  // Charger le profil utilisateur pour l'environnement
+  const { data: userProfile, isLoading: loadingProfile } = useQuery({
+    queryKey: ["user_profile_env"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("training_environment")
+        .maybeSingle();
+      
+      if (error && error.code !== "PGRST116") throw error;
+      
+      if (data?.training_environment) {
+        setTrainingEnvironment(data.training_environment);
+      }
+      
+      return data;
+    }
+  });
+
+  // Mutation pour sauvegarder l'environnement
+  const saveEnvironmentMutation = useMutation({
+    mutationFn: async (environment: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Non authentifié");
+
+      // Check if profile exists
+      const { data: existing } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase
+          .from("user_profiles")
+          .update({ training_environment: environment })
+          .eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("user_profiles")
+          .insert([{ user_id: user.id, training_environment: environment }]);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user_profile_env"] });
+      toast({ title: "Environnement mis à jour" });
+    },
+    onError: (error) => {
+      toast({ 
+        variant: "destructive", 
+        title: "Erreur", 
+        description: error instanceof Error ? error.message : "Erreur" 
+      });
     }
   });
 
@@ -97,6 +157,68 @@ export default function AISettings() {
           <Brain className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-bold">Réglages IA</h1>
         </div>
+
+        {/* Section Environnement d'entraînement */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Dumbbell className="h-5 w-5" />
+              Environnement d'entraînement
+            </CardTitle>
+            <CardDescription>
+              Le coach IA adaptera les exercices proposés selon votre lieu d'entraînement.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RadioGroup 
+              value={trainingEnvironment} 
+              onValueChange={(value) => {
+                setTrainingEnvironment(value);
+                saveEnvironmentMutation.mutate(value);
+              }}
+              className="space-y-3"
+            >
+              <div className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                <RadioGroupItem value="gym" id="gym" className="mt-1" />
+                <Label htmlFor="gym" className="flex-1 cursor-pointer">
+                  <div className="flex items-center gap-2 font-medium">
+                    <Building2 className="h-4 w-4" />
+                    Salle de sport
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Accès complet : machines, poulies, barres, haltères, bancs
+                  </p>
+                </Label>
+              </div>
+              
+              <div className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                <RadioGroupItem value="home_equipped" id="home_equipped" className="mt-1" />
+                <Label htmlFor="home_equipped" className="flex-1 cursor-pointer">
+                  <div className="flex items-center gap-2 font-medium">
+                    <Home className="h-4 w-4" />
+                    Domicile équipé
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Haltères, barre, banc, élastiques (pas de machines)
+                  </p>
+                </Label>
+              </div>
+              
+              <div className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                <RadioGroupItem value="home_minimal" id="home_minimal" className="mt-1" />
+                <Label htmlFor="home_minimal" className="flex-1 cursor-pointer">
+                  <div className="flex items-center gap-2 font-medium">
+                    <Home className="h-4 w-4" />
+                    Domicile minimal
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Poids du corps uniquement (pompes, tractions, squats...)
+                  </p>
+                </Label>
+              </div>
+            </RadioGroup>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

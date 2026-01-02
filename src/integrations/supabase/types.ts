@@ -128,6 +128,30 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_conversations: {
+        Row: {
+          created_at: string | null
+          id: number
+          messages: Json
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: never
+          messages?: Json
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: never
+          messages?: Json
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       exercises: {
         Row: {
           created_at: string | null
@@ -481,6 +505,38 @@ export type Database = {
           },
         ]
       }
+      user_exercise_preferences: {
+        Row: {
+          created_at: string | null
+          exercise_id: number
+          id: number
+          preference: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          exercise_id: number
+          id?: never
+          preference: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          exercise_id?: number
+          id?: never
+          preference?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_exercise_preferences_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_profiles: {
         Row: {
           age: number | null
@@ -493,6 +549,7 @@ export type Database = {
           level: string | null
           session_duration_minutes: number | null
           sessions_per_week: number | null
+          training_environment: string | null
           updated_at: string | null
           user_id: string
         }
@@ -507,6 +564,7 @@ export type Database = {
           level?: string | null
           session_duration_minutes?: number | null
           sessions_per_week?: number | null
+          training_environment?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -521,6 +579,7 @@ export type Database = {
           level?: string | null
           session_duration_minutes?: number | null
           sessions_per_week?: number | null
+          training_environment?: string | null
           updated_at?: string | null
           user_id?: string
         }

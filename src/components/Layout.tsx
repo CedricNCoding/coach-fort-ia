@@ -57,10 +57,15 @@ export default function Layout({ children }: LayoutProps) {
             );
           })}
           
-          {/* Bouton Coach IA */}
+          {/* Bouton Coach IA - lien vers la page */}
           <button
-            onClick={() => setCoachDialogOpen(true)}
-            className="flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all min-w-[70px] flex-shrink-0 text-primary hover:bg-primary/10"
+            onClick={() => navigate("/coach")}
+            className={cn(
+              "flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all min-w-[70px] flex-shrink-0",
+              location.pathname === "/coach"
+                ? "text-primary bg-primary/10 shadow-lg shadow-primary/20"
+                : "text-primary hover:bg-primary/10"
+            )}
           >
             <Brain className="h-5 w-5 drop-shadow-[0_0_8px_rgba(153,69,255,0.5)]" />
             <span className="text-[11px] font-medium whitespace-nowrap">Coach</span>

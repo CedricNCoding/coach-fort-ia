@@ -82,7 +82,7 @@ const Index = () => {
               <div className="space-y-3">
                 <p className="font-semibold">{todayWorkout.workout_templates?.name || "Séance planifiée"}</p>
                 <Button 
-                  onClick={() => navigate(`/calendar`)}
+                  onClick={() => navigate(`/calendrier`)}
                   className="w-full"
                 >
                   <Dumbbell className="mr-2 h-4 w-4" />
@@ -94,7 +94,7 @@ const Index = () => {
                 <p className="text-sm text-muted-foreground">Aucune séance planifiée aujourd'hui</p>
                 <Button 
                   variant="outline"
-                  onClick={() => navigate("/calendar")}
+                  onClick={() => navigate("/calendrier")}
                   className="w-full"
                 >
                   Voir le calendrier
@@ -174,7 +174,7 @@ const Index = () => {
       <div className="grid gap-4 md:grid-cols-4">
         <Button 
           variant="outline"
-          onClick={() => navigate("/calendar")}
+          onClick={() => navigate("/calendrier")}
           className="h-20 flex flex-col gap-2"
         >
           <Calendar className="h-6 w-6" />
@@ -190,7 +190,7 @@ const Index = () => {
         </Button>
         <Button 
           variant="outline"
-          onClick={() => navigate("/history")}
+          onClick={() => navigate("/historique")}
           className="h-20 flex flex-col gap-2"
         >
           <TrendingUp className="h-6 w-6" />

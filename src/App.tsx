@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Auth from "./pages/Auth";
+import Index from "./pages/Index";
 import Calendar from "./pages/Calendar";
 import History from "./pages/History";
 import Plans from "./pages/Plans";
@@ -42,7 +43,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
-          <Route path="/" element={<Navigate to="/calendrier" replace />} />
+          <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
           <Route path="/calendrier" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
           <Route path="/historique" element={<ProtectedRoute><History /></ProtectedRoute>} />
           <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />

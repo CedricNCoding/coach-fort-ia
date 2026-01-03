@@ -8,6 +8,10 @@ import { AICoach } from "@/components/AICoach";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
+import { PersonalRecordsCard } from "@/components/dashboard/PersonalRecordsCard";
+import { MuscleVolumeComparisonCard } from "@/components/dashboard/MuscleVolumeComparisonCard";
+import { StagnationAlertCard } from "@/components/dashboard/StagnationAlertCard";
+import { CoachMemoryCard } from "@/components/dashboard/CoachMemoryCard";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -64,6 +68,7 @@ const Index = () => {
         <p className="text-muted-foreground">Bienvenue dans votre espace d'entraînement</p>
       </div>
 
+      {/* Row 1: Today's workout + Week stats */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-3">
@@ -121,6 +126,19 @@ const Index = () => {
         </Card>
       </div>
 
+      {/* Row 2: Personal Records + Stagnation Alerts */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <PersonalRecordsCard />
+        <StagnationAlertCard />
+      </div>
+
+      {/* Row 3: Muscle Volume Comparison + Coach Memory */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <MuscleVolumeComparisonCard />
+        <CoachMemoryCard />
+      </div>
+
+      {/* AI Coach Dialog */}
       <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -152,6 +170,7 @@ const Index = () => {
         </CardContent>
       </Card>
 
+      {/* Quick navigation */}
       <div className="grid gap-4 md:grid-cols-4">
         <Button 
           variant="outline"

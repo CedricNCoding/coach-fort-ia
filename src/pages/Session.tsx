@@ -16,6 +16,9 @@ import { fr } from "date-fns/locale";
 import SessionExercise from "@/components/SessionExercise";
 import RestTimer from "@/components/RestTimer";
 import ManualTimer from "@/components/ManualTimer";
+import { EstimatedTimeCard } from "@/components/session/EstimatedTimeCard";
+import { OfflineIndicator } from "@/components/session/OfflineIndicator";
+import { useOfflineSession } from "@/hooks/useOfflineSession";
 
 export default function Session() {
   const { toast } = useToast();
@@ -32,8 +35,9 @@ export default function Session() {
   const prevSetsCountRef = useRef(0);
   const prevCycleCountRef = useRef(0);
   const [isInterSetRest, setIsInterSetRest] = useState(false);
-
-  // Charger la session en cours avec les infos de décharge
+  
+  // Hook for offline session support
+  const { isOnline, pendingSyncCount, isSyncing, syncOfflineData } = useOfflineSession();
   const { data: currentSession, isLoading } = useQuery({
     queryKey: ["current_session"],
     queryFn: async () => {
@@ -568,6 +572,15 @@ export default function Session() {
             </Card>
           </Collapsible>
 
+          {/* Estimated Time Remaining */}
+          {templateExercises.length > 0 && (
+            <EstimatedTimeCard 
+              templateExercises={templateExercises}
+              sessionSets={sessionSets}
+              elapsedSeconds={elapsedTime}
+            />
+          )}
+
           {/* Progression */}
           <Card>
             <CardContent className="pt-6">
@@ -724,6 +737,14 @@ export default function Session() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Offline indicator */}
+      <OfflineIndicator 
+        isOnline={isOnline}
+        pendingSyncCount={pendingSyncCount}
+        isSyncing={isSyncing}
+        onSync={syncOfflineData}
+      />
     </Layout>
   );
 }

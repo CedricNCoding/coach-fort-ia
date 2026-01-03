@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Calendar, Dumbbell, ClipboardList, BookOpen, Settings, History, Play, Brain } from "lucide-react";
+import { Calendar, Dumbbell, ClipboardList, BookOpen, Settings, History, Play, Brain, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AICoach } from "@/components/AICoach";
@@ -18,6 +18,7 @@ export default function Layout({ children }: LayoutProps) {
   const [coachDialogOpen, setCoachDialogOpen] = useState(false);
 
   const navItems = [
+    { path: "/", icon: Home, label: "Dashboard" },
     { path: "/session", icon: Play, label: "Séance" },
     { path: "/calendrier", icon: Calendar, label: "Calendrier" },
     { path: "/historique", icon: History, label: "Historique" },

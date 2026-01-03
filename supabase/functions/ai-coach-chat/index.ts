@@ -436,7 +436,9 @@ Tu dois répondre en JSON avec cette structure exacte:
 
 TYPES D'ACTIONS:
 - create_week_plan: { "sessions": [{ "name": "...", "date": "YYYY-MM-DD", "goal": "...", "exercises": [{ "exercise_id": N, "exercise_name": "...", "superset_group": "A"|"B"|"C"|null, "target_sets": N, "target_reps_min": N, "target_reps_max": N, "target_weight_kg": N }] }] }
+  IMPORTANT: Le nom des sessions DOIT inclure le numéro de semaine et l'année. Format: "Nom de séance - S{semaine} {année}" (ex: "Push - S02 2026", "Upper Body - S52 2025")
 - create_session: { "name": "...", "date": "YYYY-MM-DD", "exercises": [...] }
+  IMPORTANT: Le nom DOIT inclure "S{semaine} {année}" (ex: "Full Body - S02 2026")
 - move_session: { "plannedWorkoutId": N, "newDate": "YYYY-MM-DD" }
 - modify_exercise: { "templateExerciseId": N, "updates": { "target_sets": N, "target_weight_kg": N } }
 - replace_exercise: { "templateExerciseId": N, "newExerciseId": N }

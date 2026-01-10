@@ -19,7 +19,7 @@ import ManualTimer from "@/components/ManualTimer";
 import { EstimatedTimeCard } from "@/components/session/EstimatedTimeCard";
 import { OfflineIndicator } from "@/components/session/OfflineIndicator";
 import { useOfflineSession } from "@/hooks/useOfflineSession";
-
+import { useHapticFeedback } from "@/hooks/useHapticFeedback";
 export default function Session() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -38,6 +38,12 @@ export default function Session() {
   
   // Hook for offline session support
   const { isOnline, pendingSyncCount, isSyncing, syncOfflineData } = useOfflineSession();
+  
+  // Hook for haptic feedback on exercise change
+  const { heavyTap, notificationPattern } = useHapticFeedback();
+  
+  // Track previous exercise to detect changes
+  const prevExerciseIdRef = useRef<number | null>(null);
   const { data: currentSession, isLoading } = useQuery({
     queryKey: ["current_session"],
     queryFn: async () => {
@@ -272,6 +278,21 @@ export default function Session() {
   useEffect(() => {
     prevCycleCountRef.current = 0;
   }, [currentSupersetIndex]);
+
+  // Haptic feedback when exercise changes
+  useEffect(() => {
+    if (!currentExercise) return;
+    
+    const currentExerciseId = currentExercise.id;
+    
+    // Only trigger if the exercise actually changed (not on initial load)
+    if (prevExerciseIdRef.current !== null && prevExerciseIdRef.current !== currentExerciseId) {
+      // Vibrate to notify user of exercise change
+      heavyTap();
+    }
+    
+    prevExerciseIdRef.current = currentExerciseId;
+  }, [currentExercise?.id, heavyTap]);
 
   // Gérer l'avancement automatique dans les supersets
   useEffect(() => {

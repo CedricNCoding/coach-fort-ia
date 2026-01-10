@@ -12,6 +12,8 @@ import { PersonalRecordsCard } from "@/components/dashboard/PersonalRecordsCard"
 import { MuscleVolumeComparisonCard } from "@/components/dashboard/MuscleVolumeComparisonCard";
 import { StagnationAlertCard } from "@/components/dashboard/StagnationAlertCard";
 import { CoachMemoryCard } from "@/components/dashboard/CoachMemoryCard";
+import { BodyWeightWidget } from "@/components/dashboard/BodyWeightWidget";
+import { DeloadRecommendationCard } from "@/components/dashboard/DeloadRecommendationCard";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -132,7 +134,13 @@ const Index = () => {
         <StagnationAlertCard />
       </div>
 
-      {/* Row 3: Muscle Volume Comparison + Coach Memory */}
+      {/* Row 3: Body Weight + Deload Recommendation */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <BodyWeightWidget />
+        <DeloadRecommendationCard />
+      </div>
+
+      {/* Row 4: Muscle Volume Comparison + Coach Memory */}
       <div className="grid gap-4 md:grid-cols-2">
         <MuscleVolumeComparisonCard />
         <CoachMemoryCard />

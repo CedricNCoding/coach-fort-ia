@@ -13,7 +13,7 @@ import { calculateDeloadTargets } from "@/lib/deload-utils";
 import RestTimer from "./RestTimer";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Database } from "@/integrations/supabase/types";
-
+import { LastSetReminder } from "./session/LastSetReminder";
 type TemplateExercise = Database["public"]["Tables"]["workout_template_exercises"]["Row"] & {
   exercises: Database["public"]["Tables"]["exercises"]["Row"];
 };
@@ -303,12 +303,11 @@ export default function SessionExercise({
         )}
       </div>
 
-      {lastSession && (
-        <div className="p-2 bg-muted/50 rounded text-xs space-y-0.5">
-          <p className="font-medium text-[10px] text-muted-foreground">Dernière séance</p>
-          <p>Meilleur : {lastSession.bestSet.reps} × {Number(lastSession.bestSet.weight_kg).toFixed(1)} kg • RPE {lastSession.avgDifficulty.toFixed(1)}</p>
-        </div>
-      )}
+      {/* Rappel visuel du dernier set pour cet exercice */}
+      <LastSetReminder 
+        exerciseId={templateExercise.exercise_id} 
+        currentSessionId={sessionId} 
+      />
 
 
       {/* Sets réalisés */}

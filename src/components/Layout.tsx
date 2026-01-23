@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Calendar, Dumbbell, ClipboardList, BookOpen, Settings, History, Play, Brain, Home } from "lucide-react";
+import { Calendar, ClipboardList, BookOpen, Settings as SettingsIcon, History, Play, Brain, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AICoach } from "@/components/AICoach";
@@ -24,7 +24,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: "/historique", icon: History, label: "Historique" },
     { path: "/plans", icon: ClipboardList, label: "Plans" },
     { path: "/exercices", icon: BookOpen, label: "Exercices" },
-    { path: "/reglages-ia", icon: Settings, label: "IA" },
+    { path: "/parametres", icon: SettingsIcon, label: "Param." },
   ];
 
   return (

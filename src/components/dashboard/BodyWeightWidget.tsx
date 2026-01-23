@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Scale, TrendingUp, TrendingDown, Minus, Plus, Check, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format, subDays } from "date-fns";
+import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { useHealthKit } from "@/hooks/useHealthKit";
 
 /**
  * Widget compact pour saisir le poids corporel sur le dashboard
@@ -17,6 +18,7 @@ export function BodyWeightWidget() {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [newWeight, setNewWeight] = useState("");
+  const { isNative, isAuthorized, exportBodyWeight } = useHealthKit();
 
   // Charger les derniers poids
   const { data: weightData, isLoading } = useQuery({
@@ -43,15 +45,23 @@ export function BodyWeightWidget() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Non authentifié");
 
+      const measuredAt = new Date().toISOString();
+
       const { error } = await supabase
         .from("body_weights")
         .insert([{
           user_id: user.id,
           weight_kg: weight,
-          measured_at: new Date().toISOString()
+          measured_at: measuredAt
         }]);
       
       if (error) throw error;
+
+      // Auto-export to Health if enabled
+      const autoSyncEnabled = localStorage.getItem('healthkit_auto_sync_weight') === 'true';
+      if (isNative && isAuthorized && autoSyncEnabled) {
+        await exportBodyWeight({ date: measuredAt, weight });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["body_weights_recent"] });
@@ -143,8 +153,8 @@ export function BodyWeightWidget() {
                 <span className="text-sm text-muted-foreground">kg</span>
                 {trend && (
                   <span className={`flex items-center text-xs ${
-                    trend === "up" ? "text-orange-500" : 
-                    trend === "down" ? "text-green-500" : 
+                    trend === "up" ? "text-warning" : 
+                    trend === "down" ? "text-success" : 
                     "text-muted-foreground"
                   }`}>
                     {trend === "up" && <TrendingUp className="h-3 w-3 mr-0.5" />}

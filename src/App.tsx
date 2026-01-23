@@ -17,6 +17,7 @@ import AISettings from "./pages/AISettings";
 import AdminSettings from "./pages/AdminSettings";
 import WeeklyCoach from "./pages/WeeklyCoach";
 import CoachChat from "./pages/CoachChat";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +57,7 @@ const App = () => (
           <Route path="/admin" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
           <Route path="/coach-semaine" element={<ProtectedRoute><WeeklyCoach /></ProtectedRoute>} />
           <Route path="/coach" element={<ProtectedRoute><CoachChat /></ProtectedRoute>} />
+          <Route path="/parametres" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
